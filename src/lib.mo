@@ -19,7 +19,7 @@ module UrlKit {
         host : Host.Host;
         path : Path.Path;
         queryParams : [(Text, Text)];
-        port : ?Nat;
+        port : ?Nat16;
         fragment : ?Text;
     };
 
@@ -94,7 +94,7 @@ module UrlKit {
         };
 
         let (host, port) = switch (Host.fromText(hostAndPortText)) {
-            case (#ok(parsedHost)) parsedHost;
+            case (#ok(result)) result;
             case (#err(errMsg)) return #err("Invalid URL host: " # errMsg);
         };
 
@@ -115,11 +115,7 @@ module UrlKit {
     };
 
     public func toText(url : Url) : Text {
-        var result = url.scheme # "://" # Host.toText(url.host);
-        switch (url.port) {
-            case (?port) result := result # ":" # Nat.toText(port);
-            case (null) {};
-        };
+        var result = url.scheme # "://" # Host.toText(url.host, url.port);
 
         result := result # Path.toText(url.path);
 

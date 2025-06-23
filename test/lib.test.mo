@@ -1,4 +1,5 @@
 import UrlKit "../src";
+import Host "../src/Host";
 import Text "mo:base/Text";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
@@ -82,6 +83,94 @@ type EqualityTestCase = {
   url2 : Text;
   shouldBeEqual : Bool;
 };
+
+// ===== HOST PARSING TESTS =====
+
+test(
+  "Host.fromText - host and port parsing",
+  func() {
+    let testCases : [{
+      input : Text;
+      expectedHost : Host.Host;
+      expectedPort : ?Nat16;
+    }] = [
+      {
+        input = "example.com";
+        expectedHost = #domain({
+          name = "example";
+          tld = "com";
+          subdomains = [];
+        });
+        expectedPort = null;
+      },
+      {
+        input = "example.com:8080";
+        expectedHost = #domain({
+          name = "example";
+          tld = "com";
+          subdomains = [];
+        });
+        expectedPort = ?8080;
+      },
+      {
+        input = "localhost";
+        expectedHost = #localhost;
+        expectedPort = null;
+      },
+      {
+        input = "localhost:3000";
+        expectedHost = #localhost;
+        expectedPort = ?3000;
+      },
+      {
+        input = "192.168.1.1";
+        expectedHost = #ipv4((192, 168, 1, 1));
+        expectedPort = null;
+      },
+      {
+        input = "192.168.1.1:8080";
+        expectedHost = #ipv4((192, 168, 1, 1));
+        expectedPort = ?8080;
+      },
+      {
+        input = "[2001:db8::1]";
+        expectedHost = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedPort = null;
+      },
+      {
+        input = "[2001:db8::1]:8080";
+        expectedHost = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedPort = ?8080;
+      },
+      {
+        input = "[::1]";
+        expectedHost = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedPort = null;
+      },
+      {
+        input = "[::1]:3000";
+        expectedHost = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedPort = ?3000;
+      },
+    ];
+
+    for (testCase in testCases.vals()) {
+      switch (Host.fromText(testCase.input)) {
+        case (#ok((host, port))) {
+          if (not Host.equal(host, testCase.expectedHost)) {
+            Debug.trap("Host parsing failed for: " # testCase.input # " - host mismatch");
+          };
+          if (port != testCase.expectedPort) {
+            Debug.trap("Port parsing failed for: " # testCase.input # " - port mismatch");
+          };
+        };
+        case (#err(msg)) {
+          Debug.trap("Failed to parse host:port " # testCase.input # ": " # msg);
+        };
+      };
+    };
+  },
+);
 
 // ===== fromText SUCCESS TESTS =====
 test(

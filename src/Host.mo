@@ -2,11 +2,11 @@ import Result "mo:new-base/Result";
 import Text "mo:new-base/Text";
 import Iter "mo:new-base/Iter";
 import Array "mo:new-base/Array";
+import Nat "mo:new-base/Nat";
 import Nat8 "mo:new-base/Nat8";
 import Nat32 "mo:new-base/Nat32";
 import VarArray "mo:new-base/VarArray";
 import Char "mo:new-base/Char";
-import Nat "mo:new-base/Nat";
 import TextX "mo:xtended-text/TextX";
 import Nat16 "mo:base/Nat16";
 import BaseX "mo:base-x-encoder";
@@ -30,133 +30,87 @@ module {
 
     public type IpV6 = (Nat16, Nat16, Nat16, Nat16, Nat16, Nat16, Nat16, Nat16); // (0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334)
 
-    public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat), Text> {
+    public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat16), Text> {
         // Basic validation
         if (TextX.isEmptyOrWhitespace(hostAndPort)) return #err("Host cannot be empty");
 
-        let trimmedHost = Text.trim(hostAndPort, #text(" "));
+        let trimmed = Text.trim(hostAndPort, #text(" "));
 
-        // Check for localhost (with optional port)
-        if (Text.toLower(trimmedHost) == "localhost") return #ok((#localhost, null));
-        if (Text.startsWith(Text.toLower(trimmedHost), #text("localhost:"))) {
-            let portText = Text.trimStart(trimmedHost, #text("localhost:"));
-            switch (parsePort(portText)) {
-                case (#ok(port)) return #ok((#localhost, ?port));
-                case (#err(msg)) return #err(msg);
-            };
-        };
+        // Handle IPv6 addresses (which may have ports)
+        if (Text.startsWith(trimmed, #text("["))) {
+            // IPv6 case - look for ]:port pattern
+            if (Text.contains(trimmed, #text("]:"))) {
+                // IPv6 with port: [2001:db8::1]:8080
+                let parts = Text.split(trimmed, #text("]:"));
+                let partsArray = Iter.toArray(parts);
+                if (partsArray.size() != 2) return #err("Invalid IPv6 host:port format");
 
-        // Handle IPv6 with brackets [address]:port or [address]
-        if (Text.startsWith(trimmedHost, #text("["))) {
-            let chars = trimmedHost.chars();
-            var bracketContent = "";
-            var foundClosing = false;
-            var remainingAfterBracket = "";
+                let ipv6Part = partsArray[0] # "]"; // Add back the closing bracket
+                let portPart = partsArray[1];
 
-            // Skip the opening '['
-            let _ = chars.next();
-
-            // Collect characters until we find the closing ']'
-            label ipv6Loop for (c in chars) {
-                if (c == ']') {
-                    foundClosing := true;
-                    // Collect remaining characters after the bracket
-                    for (remaining in chars) {
-                        remainingAfterBracket #= Char.toText(remaining);
-                    };
-                    break ipv6Loop;
-                } else {
-                    bracketContent #= Char.toText(c);
-                };
-            };
-
-            if (not foundClosing) {
-                return #err("IPv6 address missing closing bracket ']'");
-            };
-
-            // Parse the IPv6 address
-            switch (parseHostOnly(bracketContent)) {
-                case (#ok(host)) {
-                    // Check if there's a port after the bracket
-                    if (Text.startsWith(remainingAfterBracket, #text(":"))) {
-                        let portText = Text.trimStart(remainingAfterBracket, #char(':'));
-                        switch (parsePort(portText)) {
-                            case (#ok(port)) return #ok((host, ?port));
-                            case (#err(msg)) return #err(msg);
-                        };
-                    } else if (Text.size(remainingAfterBracket) > 0) {
-                        return #err("Unexpected characters after IPv6 address: '" # remainingAfterBracket # "'");
-                    } else {
-                        return #ok((host, null));
-                    };
-                };
-                case (#err(msg)) return #err(msg);
-            };
-        };
-
-        // Handle regular host:port or just host
-        // Split on rightmost colon to handle potential port
-        let chars = Iter.toArray(trimmedHost.chars());
-        var lastColonIndex : ?Nat = null;
-
-        // Find the rightmost colon
-        for (i in chars.keys()) {
-            if (chars[i] == ':') {
-                lastColonIndex := ?i;
-            };
-        };
-
-        switch (lastColonIndex) {
-            case (?colonIndex) {
-                let hostPart = Text.fromIter(Array.sliceToArray(chars, 0, colonIndex).vals());
-                let portPart = Text.fromIter(Array.sliceToArray(chars, colonIndex + 1, chars.size()).vals());
-
-                // Try to parse the port part
-                switch (parsePort(portPart)) {
-                    case (#ok(port)) {
-                        // Valid port, parse the host part
-                        switch (parseHostOnly(hostPart)) {
-                            case (#ok(host)) return #ok((host, ?port));
-                            case (#err(msg)) return #err(msg);
-                        };
-                    };
-                    case (#err(_)) {
-                        // Not a valid port, treat the whole thing as host
-                        switch (parseHostOnly(trimmedHost)) {
-                            case (#ok(host)) return #ok((host, null));
-                            case (#err(msg)) return #err(msg);
-                        };
-                    };
-                };
-            };
-            case (null) {
-                // No colon found, just parse as host
-                switch (parseHostOnly(trimmedHost)) {
-                    case (#ok(host)) return #ok((host, null));
+                // Parse the IPv6 host
+                let host = switch (fromTextHostOnly(ipv6Part)) {
+                    case (#ok(h)) h;
                     case (#err(msg)) return #err(msg);
                 };
-            };
-        };
-    };
 
-    private func parsePort(portText : Text) : Result.Result<Nat, Text> {
-        if (TextX.isEmptyOrWhitespace(portText)) {
-            return #err("Empty port");
-        };
-
-        switch (Nat.fromText(portText)) {
-            case (?port) {
-                if (port < 1 or port > 65535) {
-                    return #err("Port must be between 1 and 65535");
+                // Parse the port
+                let port = switch (parsePort(portPart)) {
+                    case (#ok(p)) ?p;
+                    case (#err(msg)) return #err(msg);
                 };
-                #ok(port);
+
+                return #ok((host, port));
+            } else if (Text.endsWith(trimmed, #text("]"))) {
+                // IPv6 without port: [2001:db8::1]
+                let host = switch (fromTextHostOnly(trimmed)) {
+                    case (#ok(h)) h;
+                    case (#err(msg)) return #err(msg);
+                };
+                return #ok((host, null));
+            } else {
+                return #err("Invalid IPv6 format: missing closing bracket");
             };
-            case (null) return #err("Invalid port: '" # portText # "' is not a valid number");
         };
+
+        // Non-IPv6 case - check for port
+        if (Text.contains(trimmed, #text(":"))) {
+            let parts = Text.split(trimmed, #text(":"));
+            let partsArray = Iter.toArray(parts);
+
+            if (partsArray.size() == 2) {
+                // host:port format
+                let hostPart = partsArray[0];
+                let portPart = partsArray[1];
+
+                let host = switch (fromTextHostOnly(hostPart)) {
+                    case (#ok(h)) h;
+                    case (#err(msg)) return #err(msg);
+                };
+
+                let port = switch (parsePort(portPart)) {
+                    case (#ok(p)) ?p;
+                    case (#err(msg)) return #err(msg);
+                };
+
+                return #ok((host, port));
+            } else if (partsArray.size() > 2) {
+                // Multiple colons but not IPv6 - invalid
+                return #err("Invalid host:port format: multiple colons found");
+            };
+        };
+
+        // No port, just host
+        let host = switch (fromTextHostOnly(trimmed)) {
+            case (#ok(h)) h;
+            case (#err(msg)) return #err(msg);
+        };
+
+        #ok((host, null));
     };
 
-    private func parseHostOnly(host : Text) : Result.Result<Host, Text> {
-        // This is the original fromText logic but without port handling
+    private func fromTextHostOnly(host : Text) : Result.Result<Host, Text> {
+        // Basic host validation
         if (TextX.isEmptyOrWhitespace(host)) return #err("Host cannot be empty");
 
         let trimmedHost = Text.trim(host, #text(" "));
@@ -164,8 +118,15 @@ module {
         // Check for localhost
         if (Text.toLower(trimmedHost) == "localhost") return #ok(#localhost);
 
-        // For IPv6, don't expect brackets here since they're handled in the main function
-        let cleanHost = trimmedHost;
+        // Check for IPv6 (contains colons, might be wrapped in brackets)
+        let cleanHost = if (Text.startsWith(trimmedHost, #text("[")) and Text.endsWith(trimmedHost, #text("]"))) {
+            // Remove brackets for IPv6
+            let chars = trimmedHost.chars();
+            let arr = Iter.toArray(chars);
+            Text.fromIter(Array.sliceToArray(arr, 1, arr.size() - 1 : Nat).vals());
+        } else {
+            trimmedHost;
+        };
 
         // Check for IPv6 (contains colons)
         if (isIpV6Format(cleanHost)) {
@@ -190,6 +151,14 @@ module {
         };
     };
 
+    private func parsePort(portText : Text) : Result.Result<Nat16, Text> {
+        let ?port = Nat.fromText(portText) else return #err("Invalid port: '" # portText # "' is not a valid number");
+        if (port < 1 or port > 65535) {
+            return #err("Invalid port: Port must be between 1 and 65535");
+        };
+        #ok(Nat16.fromNat(port));
+    };
+
     private func isIpV6Format(text : Text) : Bool {
         // IPv6 addresses contain colons
         Text.contains(text, #text(":"));
@@ -198,7 +167,7 @@ module {
     private func parseIpV6(text : Text) : Result.Result<IpV6, Text> {
         // Handle :: compression
         let doubleColonCount = countSubstring(text, "::");
-        if (doubleColonCount > 1) return #err("Multiple '::' not allowed");
+        if (doubleColonCount > 1) return #err("Multiple :: not allowed");
 
         var expandedText = text;
         if (doubleColonCount == 1) {
@@ -285,7 +254,17 @@ module {
         if (text.size() == 0) return #err("Empty group");
         if (text.size() > 4) return #err("Group too long");
 
-        let hexValue : [Nat8] = switch (BaseX.fromHex(text, { prefix = #none })) {
+        // Pad with leading zeros to make it exactly 4 characters (2 bytes)
+        // This is needed because BaseX.fromHex expects even-length strings
+        let paddedText = switch (text.size()) {
+            case (1) "000" # text;
+            case (2) "00" # text;
+            case (3) "0" # text;
+            case (4) text;
+            case (_) return #err("Invalid group length");
+        };
+
+        let hexValue : [Nat8] = switch (BaseX.fromHex(paddedText, { prefix = #none })) {
             case (#ok(value)) value;
             case (#err(msg)) return #err("Invalid hex group '" # text # "': " # msg);
         };
@@ -369,7 +348,21 @@ module {
         });
     };
 
-    public func toText(host : Host) : Text {
+    public func toText(host : Host, port : ?Nat16) : Text {
+        let hostText = switch (host) {
+            case (#localhost) "localhost";
+            case (#domain(d)) domainToText(d);
+            case (#ipv4(ip)) ipv4ToText(ip);
+            case (#ipv6(ip)) "[" # ipv6ToText(ip) # "]";
+        };
+
+        switch (port) {
+            case (?p) hostText # ":" # Nat16.toText(p);
+            case (null) hostText;
+        };
+    };
+
+    public func toTextHostOnly(host : Host) : Text {
         switch (host) {
             case (#localhost) "localhost";
             case (#domain(d)) domainToText(d);
