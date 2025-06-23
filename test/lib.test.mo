@@ -320,6 +320,94 @@ test(
           fragment = ?"fragment";
         };
       },
+      {
+        input = "https://[2001:db8::1]";
+        expected = {
+          scheme = "https";
+          host = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+          path = [];
+          queryParams = [];
+          port = null;
+          fragment = null;
+        };
+      },
+      {
+        input = "http://[::1]:8080";
+        expected = {
+          scheme = "http";
+          host = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+          path = [];
+          queryParams = [];
+          port = ?8080;
+          fragment = null;
+        };
+      },
+      {
+        input = "https://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]/path";
+        expected = {
+          scheme = "https";
+          host = #ipv6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
+          path = ["path"];
+          queryParams = [];
+          port = null;
+          fragment = null;
+        };
+      },
+      {
+        input = "ftp://[2001:db8:85a3::8a2e:370:7334]:2121/files";
+        expected = {
+          scheme = "ftp";
+          host = #ipv6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
+          path = ["files"];
+          queryParams = [];
+          port = ?2121;
+          fragment = null;
+        };
+      },
+      {
+        input = "https://[::ffff:192.168.1.1]?query=value";
+        expected = {
+          scheme = "https";
+          host = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xffff, 0xc0a8, 0x0101));
+          path = [];
+          queryParams = [("query", "value")];
+          port = null;
+          fragment = null;
+        };
+      },
+      {
+        input = "https://[2001:db8::]:443/secure?auth=token#section";
+        expected = {
+          scheme = "https";
+          host = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000));
+          path = ["secure"];
+          queryParams = [("auth", "token")];
+          port = ?443;
+          fragment = ?"section";
+        };
+      },
+      {
+        input = "http://[::]:80";
+        expected = {
+          scheme = "http";
+          host = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000));
+          path = [];
+          queryParams = [];
+          port = ?80;
+          fragment = null;
+        };
+      },
+      {
+        input = "https://[2001:DB8:85A3::8A2E:370:7334]"; // Mixed case
+        expected = {
+          scheme = "https";
+          host = #ipv6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
+          path = [];
+          queryParams = [];
+          port = null;
+          fragment = null;
+        };
+      },
     ];
 
     for (testCase in testCases.vals()) {
@@ -350,6 +438,15 @@ test(
       { input = "https://example.com?param1=value1?param2=value2" },
       { input = "https://://example.com" },
       { input = "http://" },
+      { input = "https://[2001:db8::1::2]" }, // Multiple ::
+      { input = "https://[2001:db8:invalid:hex]" }, // Invalid hex
+      { input = "https://[2001:db8:85a3:0000:0000:8a2e:0370:7334:extra]" }, // Too many groups
+      { input = "https://[2001:db8]" }, // Too few groups
+      { input = "https://[2001:db8::gggg]" }, // Invalid hex characters
+      { input = "https://[2001:db8::12345]" }, // Group too large
+      { input = "https://2001:db8::1" }, // Missing brackets
+      { input = "https://[2001:db8::1" }, // Missing closing bracket
+      { input = "https://2001:db8::1]" }, // Missing opening bracket
     ];
 
     for (testCase in testCases.vals()) {
@@ -745,6 +842,365 @@ test(
         };
         case (#err(msg)) {
           Debug.trap(formatError("normalize setup", testCase.input, "valid URL", "parse error: " # msg));
+        };
+      };
+    };
+  },
+);
+
+// Additional test cases to verify bug fixes
+// Add these to your existing test file
+
+test(
+  "Bug Fix 1: Fragment encoding/decoding",
+  func() {
+    let testCases = [
+      {
+        input = "https://example.com#hello%20world";
+        expectedFragment = ?"hello world";
+        roundtripExpected = "https://example.com#hello%20world";
+      },
+      {
+        input = "https://example.com#section%201%2B2";
+        expectedFragment = ?"section 1+2";
+        roundtripExpected = "https://example.com#section%201%2b2";
+      },
+      {
+        input = "https://example.com#%E2%82%AC";
+        expectedFragment = ?"€";
+        roundtripExpected = "https://example.com#%e2%82%ac";
+      },
+    ];
+
+    for (testCase in testCases.vals()) {
+      switch (UrlKit.fromText(testCase.input)) {
+        case (#ok(url)) {
+          // Check fragment was decoded properly
+          switch (url.fragment, testCase.expectedFragment) {
+            case (?actual, ?expected) {
+              if (actual != expected) {
+                Debug.trap("Fragment decoding failed: expected '" # expected # "' but got '" # actual # "'");
+              };
+            };
+            case (null, null) {}; // Both null, ok
+            case _ {
+              Debug.trap("Fragment presence mismatch");
+            };
+          };
+
+          // Check roundtrip encoding
+          let reconstructed = UrlKit.toText(url);
+          if (reconstructed != testCase.roundtripExpected) {
+            Debug.trap("Fragment encoding failed: expected '" # testCase.roundtripExpected # "' but got '" # reconstructed # "'");
+          };
+        };
+        case (#err(msg)) {
+          Debug.trap("Failed to parse URL with fragment: " # msg);
+        };
+      };
+    };
+  },
+);
+
+test(
+  "Bug Fix 2: Empty path segments with normalization handling",
+  func() {
+    let testCases = [
+      {
+        input = "https://example.com//path";
+        expectedPath = ["path"];
+      },
+      {
+        input = "https://example.com///multiple///slashes";
+        expectedPath = ["multiple", "slashes"];
+      },
+      {
+        input = "https://example.com/normal/path/";
+        expectedPath = ["normal", "path"];
+      },
+    ];
+
+    for (testCase in testCases.vals()) {
+      switch (UrlKit.fromText(testCase.input)) {
+        case (#ok(url)) {
+          let normalizedUrl = UrlKit.normalize(url);
+          if (normalizedUrl.path != testCase.expectedPath) {
+            Debug.trap(
+              "Path parsing failed for '" # testCase.input # "': expected " #
+              debug_show (testCase.expectedPath) # " but got " # debug_show (normalizedUrl.path)
+            );
+          };
+        };
+        case (#err(msg)) {
+          Debug.trap("Failed to parse URL with multiple slashes: " # msg);
+        };
+      };
+    };
+  },
+);
+
+test(
+  "Bug Fix 3: Query parameter key encoding",
+  func() {
+    let testCases = [
+      {
+        url = "https://example.com";
+        params = [("hello world", "value"), ("key+special", "test")];
+        expectedInOutput = ["hello%20world=value", "key%2bspecial=test"];
+      },
+      {
+        url = "https://example.com";
+        params = [("€", "euro"), ("ñ", "eñe")];
+        expectedInOutput = ["%e2%82%ac=euro", "%c3%b1=e%c3%b1e"];
+      },
+    ];
+
+    for (testCase in testCases.vals()) {
+      switch (UrlKit.fromText(testCase.url)) {
+        case (#ok(url)) {
+          let urlWithParams = UrlKit.addQueryParamMulti(url, testCase.params);
+          let result = UrlKit.toText(urlWithParams);
+
+          for (expected in testCase.expectedInOutput.vals()) {
+            if (not Text.contains(result, #text(expected))) {
+              Debug.trap(
+                "Query key encoding failed: expected '" # expected #
+                "' in result but got: " # result
+              );
+            };
+          };
+        };
+        case (#err(msg)) {
+          Debug.trap("Failed to parse base URL: " # msg);
+        };
+      };
+    };
+  },
+);
+
+test(
+  "IPv6 - comprehensive parsing and formatting",
+  func() {
+    let ipv6TestCases = [
+      {
+        input = "https://[2001:db8::1]";
+        expectedHostType = "ipv6";
+        shouldContainInOutput = "[2001:db8::1]";
+      },
+      {
+        input = "http://[::1]:8080/api";
+        expectedHostType = "ipv6";
+        shouldContainInOutput = "[::1]:8080";
+      },
+      {
+        input = "https://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]";
+        expectedHostType = "ipv6";
+        shouldContainInOutput = "[2001:db8:85a3:0:0:8a2e:370:7334]"; // Normalized format
+      },
+      {
+        input = "ftp://[::ffff:192.168.1.1]:21";
+        expectedHostType = "ipv6";
+        shouldContainInOutput = "[::ffff:c0a8:101]:21"; // IPv4-mapped IPv6
+      },
+    ];
+
+    for (testCase in ipv6TestCases.vals()) {
+      switch (UrlKit.fromText(testCase.input)) {
+        case (#ok(url)) {
+          // Verify host type
+          switch (url.host) {
+            case (#ipv6(_)) {}; // Correct
+            case _ {
+              Debug.trap("Expected IPv6 host type for: " # testCase.input);
+            };
+          };
+
+          // Verify roundtrip
+          let output = UrlKit.toText(url);
+          if (not Text.contains(output, #text(testCase.shouldContainInOutput))) {
+            Debug.trap(
+              "IPv6 formatting failed for " # testCase.input #
+              ": expected to contain '" # testCase.shouldContainInOutput #
+              "' but got: " # output
+            );
+          };
+        };
+        case (#err(msg)) {
+          Debug.trap("Failed to parse valid IPv6 URL " # testCase.input # ": " # msg);
+        };
+      };
+    };
+  },
+);
+
+test(
+  "IPv6 - compressed notation handling",
+  func() {
+    let compressionTestCases = [
+      {
+        input = "https://[2001:db8:0:0:0:0:0:1]";
+        compressed = "https://[2001:db8::1]";
+        description = "leading zeros compression";
+      },
+      {
+        input = "https://[2001:0:0:0:0:0:0:1]";
+        compressed = "https://[2001::1]";
+        description = "middle zeros compression";
+      },
+      {
+        input = "https://[0:0:0:0:0:0:0:1]";
+        compressed = "https://[::1]";
+        description = "loopback compression";
+      },
+      {
+        input = "https://[0:0:0:0:0:0:0:0]";
+        compressed = "https://[::]";
+        description = "all zeros compression";
+      },
+    ];
+
+    for (testCase in compressionTestCases.vals()) {
+      // Parse both formats
+      switch (UrlKit.fromText(testCase.input), UrlKit.fromText(testCase.compressed)) {
+        case (#ok(url1), #ok(url2)) {
+          // Should be equal when normalized
+          if (not UrlKit.equal(url1, url2)) {
+            Debug.trap(
+              "IPv6 compression equality failed for " # testCase.description #
+              ": " # testCase.input # " should equal " # testCase.compressed
+            );
+          };
+        };
+        case (#err(msg), _) {
+          Debug.trap("Failed to parse expanded IPv6 " # testCase.input # ": " # msg);
+        };
+        case (_, #err(msg)) {
+          Debug.trap("Failed to parse compressed IPv6 " # testCase.compressed # ": " # msg);
+        };
+      };
+    };
+  },
+);
+
+test(
+  "IPv6 - case insensitivity",
+  func() {
+    let caseTestCases = [
+      {
+        lower = "https://[2001:db8:85a3::8a2e:370:7334]";
+        upper = "https://[2001:DB8:85A3::8A2E:370:7334]";
+        mixed = "https://[2001:Db8:85A3::8a2E:370:7334]";
+      },
+      {
+        lower = "https://[::ffff:c0a8:101]";
+        upper = "https://[::FFFF:C0A8:101]";
+        mixed = "https://[::FfFf:C0a8:101]";
+      },
+    ];
+
+    for (testCase in caseTestCases.vals()) {
+      switch (
+        UrlKit.fromText(testCase.lower),
+        UrlKit.fromText(testCase.upper),
+        UrlKit.fromText(testCase.mixed),
+      ) {
+        case (#ok(url1), #ok(url2), #ok(url3)) {
+          // All should be equal when normalized
+          if (not UrlKit.equal(url1, url2) or not UrlKit.equal(url1, url3)) {
+            Debug.trap("IPv6 case insensitivity failed for: " # testCase.lower);
+          };
+
+          // Output should be normalized to lowercase
+          let output = UrlKit.toText(UrlKit.normalize(url2));
+          if (not Text.contains(output, #text(UrlKit.toText(url1)))) {
+            Debug.trap("IPv6 case normalization failed");
+          };
+        };
+        case _ {
+          Debug.trap("Failed to parse IPv6 case test URLs");
+        };
+      };
+    };
+  },
+);
+
+test(
+  "IPv6 - special addresses",
+  func() {
+    let specialTestCases = [
+      {
+        input = "https://[::1]";
+        description = "IPv6 loopback";
+        expectedEqual = "https://[0:0:0:0:0:0:0:1]";
+      },
+      {
+        input = "https://[::]";
+        description = "IPv6 all zeros";
+        expectedEqual = "https://[0:0:0:0:0:0:0:0]";
+      },
+      {
+        input = "https://[::ffff:192.168.1.1]";
+        description = "IPv4-mapped IPv6";
+        expectedEqual = "https://[0:0:0:0:0:ffff:c0a8:101]";
+      },
+      {
+        input = "https://[2001:db8::8a2e:370:7334]";
+        description = "documentation prefix";
+        expectedEqual = "https://[2001:db8:0:0:0:8a2e:370:7334]";
+      },
+    ];
+
+    for (testCase in specialTestCases.vals()) {
+      switch (UrlKit.fromText(testCase.input), UrlKit.fromText(testCase.expectedEqual)) {
+        case (#ok(url1), #ok(url2)) {
+          if (not UrlKit.equal(url1, url2)) {
+            Debug.trap(
+              "IPv6 special address test failed for " # testCase.description #
+              ": " # testCase.input # " should equal " # testCase.expectedEqual
+            );
+          };
+        };
+        case (#err(msg), _) {
+          Debug.trap("Failed to parse " # testCase.description # " " # testCase.input # ": " # msg);
+        };
+        case (_, #err(msg)) {
+          Debug.trap("Failed to parse expected equal " # testCase.expectedEqual # ": " # msg);
+        };
+      };
+    };
+  },
+);
+
+test(
+  "IPv6 - roundtrip with complex URLs",
+  func() {
+    let complexTestCases = [
+      "https://[2001:db8::1]:8443/api/v1/users?filter=active&sort=name#results",
+      "http://[::1]:3000/app?redirect=%2Fhome&token=abc123",
+      "ftp://[2001:db8:85a3::8a2e:370:7334]:2121/files/document.pdf",
+      "https://[::ffff:c0a8:101]/path/to/resource?param=%E2%82%AC&other=value#section1",
+    ];
+
+    for (testCase in complexTestCases.vals()) {
+      switch (UrlKit.fromText(testCase)) {
+        case (#ok(url)) {
+          let reconstructed = UrlKit.toText(url);
+          switch (UrlKit.fromText(reconstructed)) {
+            case (#ok(url2)) {
+              if (not UrlKit.equal(url, url2)) {
+                Debug.trap(
+                  "IPv6 complex roundtrip failed for: " # testCase #
+                  "\nReconstructed: " # reconstructed
+                );
+              };
+            };
+            case (#err(msg)) {
+              Debug.trap("Failed to re-parse reconstructed IPv6 URL: " # reconstructed # " - " # msg);
+            };
+          };
+        };
+        case (#err(msg)) {
+          Debug.trap("Failed to parse complex IPv6 URL " # testCase # ": " # msg);
         };
       };
     };

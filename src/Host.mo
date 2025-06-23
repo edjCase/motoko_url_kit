@@ -7,13 +7,16 @@ import Nat32 "mo:new-base/Nat32";
 import VarArray "mo:new-base/VarArray";
 import Char "mo:new-base/Char";
 import TextX "mo:xtended-text/TextX";
+import Nat16 "mo:base/Nat16";
+import BaseX "mo:base-x-encoder";
+import NatX "mo:xtended-numbers/NatX";
 
 module {
     public type Host = {
         #localhost;
         #domain : Domain;
         #ipv4 : IpV4;
-        // TODO IPv6
+        #ipv6 : IpV6;
     };
 
     public type Domain = {
@@ -24,11 +27,11 @@ module {
 
     public type IpV4 = (Nat8, Nat8, Nat8, Nat8); // (192, 168, 1, 1)
 
-    public type Label = Text;
+    public type IpV6 = (Nat16, Nat16, Nat16, Nat16, Nat16, Nat16, Nat16, Nat16); // (0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334)
 
     public func fromText(host : Text) : Result.Result<Host, Text> {
         // Basic host validation
-        if (TextX.isEmptyOrWhitespace(host)) return #err("Host cannot be empty");
+        if (TextX.isEmptyOrWhitespace(host)) return #err("Host cannot be empty ");
 
         let trimmedHost = Text.trim(host, #text(" "));
 
@@ -36,7 +39,7 @@ module {
         if (Text.toLower(trimmedHost) == "localhost") return #ok(#localhost);
 
         // Check for IPv6 (contains colons, might be wrapped in brackets)
-        let cleanHost = if (Text.startsWith(trimmedHost, #text("[")) and Text.endsWith(trimmedHost, #text("]"))) {
+        let cleanHost = if (Text.startsWith(trimmedHost, #text(" [")) and Text.endsWith(trimmedHost, #text("] "))) {
             // Remove brackets for IPv6
             let chars = trimmedHost.chars();
             let arr = Iter.toArray(chars);
@@ -45,18 +48,132 @@ module {
             trimmedHost;
         };
 
+        // Check for IPv6 (contains colons)
+        if (isIpV6Format(cleanHost)) {
+            switch (parseIpV6(cleanHost)) {
+                case (#ok(ipv6)) return #ok(#ipv6(ipv6));
+                case (#err(msg)) return #err("Invalid IPv6 : " # msg);
+            };
+        };
+
         // Check for IPv4 (4 numbers separated by dots)
         if (isIpV4Format(cleanHost)) {
             switch (parseIpV4(cleanHost)) {
                 case (#ok(ipv4)) return #ok(#ipv4(ipv4));
-                case (#err(msg)) return #err("Invalid IPv4: " # msg);
+                case (#err(msg)) return #err(" Invalid IPv4 : " # msg);
             };
         };
 
         // Parse as domain
         switch (parseDomain(cleanHost)) {
             case (#ok(domain)) return #ok(#domain(domain));
-            case (#err(msg)) return #err("Invalid domain: " # msg);
+            case (#err(msg)) return #err(" Invalid domain : " # msg);
+        };
+    };
+
+    private func isIpV6Format(text : Text) : Bool {
+        // IPv6 addresses contain colons
+        Text.contains(text, #text(" : "));
+    };
+
+    private func parseIpV6(text : Text) : Result.Result<IpV6, Text> {
+        // Handle :: compression
+        let doubleColonCount = countSubstring(text, " : : ");
+        if (doubleColonCount > 1) return #err(" Multiple : : not allowed ");
+
+        var expandedText = text;
+        if (doubleColonCount == 1) {
+            expandedText := expandDoubleColon(text);
+        };
+
+        // Split by colons
+        let parts = Text.split(expandedText, #text(" : "));
+        let partsArray = Iter.toArray(parts);
+
+        if (partsArray.size() != 8) return #err("IPv6 must have 8 groups ");
+
+        var groups : [var Nat16] = VarArray.repeat<Nat16>(0, 8);
+
+        for (i in partsArray.keys()) {
+            let part = partsArray[i];
+            switch (parseHex16(part)) {
+                case (#ok(group)) groups[i] := group;
+                case (#err(msg)) return #err("Invalid group '" # part # "': " # msg);
+            };
+        };
+
+        #ok((groups[0], groups[1], groups[2], groups[3], groups[4], groups[5], groups[6], groups[7]));
+    };
+
+    private func countSubstring(text : Text, substring : Text) : Nat {
+        let chars = Iter.toArray(text.chars());
+        let subChars = Iter.toArray(substring.chars());
+        var count = 0;
+        var i = 0;
+
+        while (i <= (chars.size() - subChars.size() : Int)) {
+            var match = true;
+            for (j in subChars.keys()) {
+                if (chars[i + j] != subChars[j]) {
+                    match := false;
+                };
+            };
+            if (match) {
+                count += 1;
+                i += subChars.size();
+            } else {
+                i += 1;
+            };
+        };
+        count;
+    };
+
+    private func expandDoubleColon(text : Text) : Text {
+        // Split on "::"
+        let parts = Text.split(text, #text("::"));
+        let partsArray = Iter.toArray(parts);
+
+        if (partsArray.size() != 2) return text;
+        // Should not happen if validation is correct
+
+        let leftPart = partsArray[0];
+        let rightPart = partsArray[1];
+
+        // Count existing groups
+        let leftGroups = if (leftPart == "") 0 else Iter.toArray(Text.split(leftPart, #text(":"))).size();
+        let rightGroups = if (rightPart == "") 0 else Iter.toArray(Text.split(rightPart, #text(":"))).size();
+
+        let missingGroups : Nat = 8 - leftGroups - rightGroups;
+        let zeros = Array.tabulate<Text>(missingGroups, func(_) = "0");
+        let zerosText = Text.join(":", zeros.vals());
+
+        if (leftPart == "" and rightPart == "") {
+            // "::" represents all zeros
+            "0:0:0:0:0:0:0:0";
+        } else if (leftPart == "") {
+            // "::1234" format
+            zerosText # ":" # rightPart;
+        } else if (rightPart == "") {
+            // "1234::" format
+            leftPart # ":" # zerosText;
+        } else {
+            // "1234::5678" format
+            leftPart # ":" # zerosText # ":" # rightPart;
+        };
+    };
+
+    private func parseHex16(text : Text) : Result.Result<Nat16, Text> {
+        if (text.size() == 0) return #err("Empty group");
+        if (text.size() > 4) return #err("Group too long");
+
+        let hexValue : [Nat8] = switch (BaseX.fromHex(text, { prefix = #none })) {
+            case (#ok(value)) value;
+            case (#err(msg)) return #err("Invalid hex group '" # text # "': " # msg);
+        };
+
+        switch (NatX.decodeNat16(hexValue.vals(), #msb)) {
+            case (?value) #ok(value);
+            case (null) #err("Invalid hex group '" # text # "': Not a valid 16-bit value");
         };
     };
 
@@ -110,13 +227,12 @@ module {
         let parts = Text.split(text, #text("."));
         let partsArray = Iter.toArray(parts);
 
-        if (partsArray.size() < 2) return #err("Domain must have at least name and TLD");
+        if (partsArray.size() < 2) return #err("Invalid domain: Must have at least name and TLD");
 
         // Validate each part
         for (part in partsArray.vals()) {
-            if (part.size() == 0) return #err("Empty domain label");
-            if (part.size() > 63) return #err("Domain label too long");
-            // Additional validation could be added here
+            if (part.size() == 0) return #err("Invalid domain: Contains empty label");
+            if (part.size() > 63) return #err("Invalid domain: Contains label longer than 63 characters");
         };
 
         let tld = partsArray[partsArray.size() - 1];
@@ -139,6 +255,7 @@ module {
             case (#localhost) "localhost";
             case (#domain(d)) domainToText(d);
             case (#ipv4(ip)) ipv4ToText(ip);
+            case (#ipv6(ip)) ipv6ToText(ip);
         };
     };
 
@@ -152,11 +269,36 @@ module {
         Nat8.toText(a) # "." # Nat8.toText(b) # "." # Nat8.toText(c) # "." # Nat8.toText(d);
     };
 
+    private func ipv6ToText(ip : IpV6) : Text {
+        let (a, b, c, d, e, f, g, h) = ip;
+        let groups = [a, b, c, d, e, f, g, h];
+        let hexGroups = Array.map<Nat16, Text>(groups, nat16ToHex);
+        Text.join(":", hexGroups.vals());
+    };
+
+    private func nat16ToHex(n : Nat16) : Text {
+        let value = Nat16.toNat(n);
+        if (value == 0) return "0";
+
+        let hexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+        var result = "";
+        var remaining = value;
+
+        while (remaining > 0) {
+            let digit = remaining % 16;
+            result := Char.toText(hexChars[digit]) # result;
+            remaining := remaining / 16;
+        };
+
+        result;
+    };
+
     public func normalize(host : Host) : Host {
         switch (host) {
             case (#localhost) #localhost;
             case (#domain(d)) #domain(normalizeDomain(d));
-            case (#ipv4(ip)) #ipv4(ip); // IPv4 already normalized
+            case (#ipv4(ip)) #ipv4(ip);
+            case (#ipv6(ip)) #ipv6(ip);
         };
     };
 

@@ -24,7 +24,6 @@ module UrlKit {
     };
 
     public func fromText(url : Text) : Result.Result<Url, Text> {
-
         // Extract scheme (http://, https://, etc.)
         let schemeParts = Text.split(url, #text("://"));
         let ?scheme : ?Text = schemeParts.next() else return #err("Invalid URL: Missing scheme");
@@ -50,7 +49,11 @@ module UrlKit {
                 if (TextX.isEmptyOrWhitespace(fragmentText)) {
                     null // Empty fragment is treated as no fragment
                 } else {
-                    ?fragmentText;
+                    // Decode the fragment
+                    switch (decodeValue(fragmentText)) {
+                        case (#ok(decoded)) ?decoded;
+                        case (#err(errMsg)) return #err("Invalid URL fragment: " # errMsg);
+                    };
                 };
             };
             case (null) null;
@@ -141,14 +144,17 @@ module UrlKit {
         if (url.queryParams.size() > 0) {
             let queryString = Text.join(
                 "&",
-                Array.map(url.queryParams, func((k, v) : (Text, Text)) : Text = k # "=" # encodeValue(v)).vals(),
+                Array.map(
+                    url.queryParams,
+                    func((k, v) : (Text, Text)) : Text = encodeValue(k) # "=" # encodeValue(v) // Now encoding both key and value
+                ).vals(),
             );
             result := result # "?" # queryString;
         };
 
         // Add fragment
         switch (url.fragment) {
-            case (?fragment) result := result # "#" # fragment;
+            case (?fragment) result := result # "#" # encodeValue(fragment);
             case (null) {};
         };
 

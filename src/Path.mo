@@ -1,3 +1,6 @@
+// Empty path segments fix for Path.mo
+// Replace the existing parse function with this updated version
+
 import Text "mo:new-base/Text";
 import Iter "mo:new-base/Iter";
 import Array "mo:new-base/Array";
@@ -9,6 +12,12 @@ module {
     public type Segment = Text;
 
     public func parse(path : Text) : Path {
+        // Handle edge cases first
+        if (path == "/" or path == "") {
+            return [];
+        };
+
+        // Split by '/' and filter out empty segments
         path
         |> Text.split(_, #char('/'))
         |> Iter.filter(_, func(x : Text) : Bool { x != "" })
@@ -16,6 +25,10 @@ module {
     };
 
     public func toText(path : Path) : Text {
+        // Handle empty path
+        if (path.size() == 0) {
+            return "";
+        };
         "/" # Text.join("/", path.vals());
     };
 
@@ -54,6 +67,14 @@ module {
     };
 
     public func normalize(path : Path) : Path {
-        path |> Array.map(_, Text.toLower);
+        path.vals()
+        |> Iter.filter(
+            _,
+            func(segment : Segment) : Bool {
+                segment != "" // Filter out empty segments
+            },
+        )
+        |> Iter.map(_, Text.toLower)
+        |> Iter.toArray(_);
     };
 };
