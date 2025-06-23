@@ -93,24 +93,7 @@ module UrlKit {
             case (null) hostAndPath;
         };
 
-        let hostAndPortParts = Text.split(hostAndPortText, #char(':'));
-        let hostText = switch (hostAndPortParts.next()) {
-            case (?hostPart) hostPart;
-            case (null) return #err("Invalid URL: Missing host");
-        };
-        let port : ?Nat = switch (hostAndPortParts.next()) {
-            case (?portPart) {
-                // Try to parse the port as a Nat
-                let ?parsedPort = Nat.fromText(portPart) else return #err("Invalid URL port: '" # portPart # "' is not a valid number");
-                if (parsedPort < 1 or parsedPort > 65535) {
-                    return #err("Invalid URL port: Port must be between 1 and 65535");
-                };
-                ?parsedPort;
-            };
-            case (null) null; // No port specified
-        };
-
-        let host = switch (Host.fromText(hostText)) {
+        let (host, port) = switch (Host.fromText(hostAndPortText)) {
             case (#ok(parsedHost)) parsedHost;
             case (#err(errMsg)) return #err("Invalid URL host: " # errMsg);
         };
