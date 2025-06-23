@@ -30,6 +30,12 @@ module {
 
     public type IpV6 = (Nat16, Nat16, Nat16, Nat16, Nat16, Nat16, Nat16, Nat16); // (0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334)
 
+    type IpV6Format = {
+        #full; // 2001:0db8:0000:0000:0000:0000:0000:0001
+        #compressed; // 2001:db8::1
+        #standard; // 2001:db8:0:0:0:0:0:1
+    };
+
     public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat16), Text> {
         // Basic validation
         if (TextX.isEmptyOrWhitespace(hostAndPort)) return #err("Host cannot be empty");
@@ -165,13 +171,19 @@ module {
     };
 
     private func parseIpV6(text : Text) : Result.Result<IpV6, Text> {
+        // Handle IPv4-mapped IPv6 addresses first
+        let processedText = switch (handleEmbeddedIpV4(text)) {
+            case (#ok(processed)) processed;
+            case (#err(msg)) return #err(msg);
+        };
+
         // Handle :: compression
-        let doubleColonCount = countSubstring(text, "::");
+        let doubleColonCount = countSubstring(processedText, "::");
         if (doubleColonCount > 1) return #err("Multiple :: not allowed");
 
-        var expandedText = text;
+        var expandedText = processedText;
         if (doubleColonCount == 1) {
-            expandedText := expandDoubleColon(text);
+            expandedText := expandDoubleColon(processedText);
         };
 
         // Split by colons
@@ -191,6 +203,45 @@ module {
         };
 
         #ok((groups[0], groups[1], groups[2], groups[3], groups[4], groups[5], groups[6], groups[7]));
+    };
+
+    private func handleEmbeddedIpV4(text : Text) : Result.Result<Text, Text> {
+        // Find the last colon to check if what follows might be an IPv4 address
+        let parts = Text.split(text, #text(":"));
+        let partsArray = Iter.toArray(parts);
+
+        if (partsArray.size() == 0) return #ok(text);
+
+        let lastPart = partsArray[partsArray.size() - 1];
+
+        // Check if the last part is an IPv4 address
+        if (isIpV4Format(lastPart)) {
+            // Parse the IPv4 address
+            switch (parseIpV4(lastPart)) {
+                case (#ok((a, b, c, d))) {
+                    // Convert IPv4 to two 16-bit hex values
+                    let high16 = Nat16.fromNat(Nat8.toNat(a) * 256 + Nat8.toNat(b));
+                    let low16 = Nat16.fromNat(Nat8.toNat(c) * 256 + Nat8.toNat(d));
+
+                    // Convert to hex strings
+                    let high16Hex = nat16ToHex(high16);
+                    let low16Hex = nat16ToHex(low16);
+
+                    // Rebuild the IPv6 string with the converted values
+                    let prefixParts = Array.sliceToArray(partsArray, 0, partsArray.size() - 1 : Nat);
+                    let prefixText = Text.join(":", prefixParts.vals());
+
+                    if (prefixText == "") {
+                        #ok(high16Hex # ":" # low16Hex);
+                    } else {
+                        #ok(prefixText # ":" # high16Hex # ":" # low16Hex);
+                    };
+                };
+                case (#err(msg)) return #err("Invalid embedded IPv4: " # msg);
+            };
+        } else {
+            #ok(text);
+        };
     };
 
     private func countSubstring(text : Text, substring : Text) : Nat {
@@ -382,12 +433,118 @@ module {
     };
 
     private func ipv6ToText(ip : IpV6) : Text {
-        let (a, b, c, d, e, f, g, h) = ip;
-        let groups = [a, b, c, d, e, f, g, h];
-        let hexGroups = Array.map<Nat16, Text>(groups, nat16ToHex);
-        Text.join(":", hexGroups.vals());
+        ipv6ToTextWithFormat(ip, #compressed);
     };
 
+    private func ipv6ToTextWithFormat(ip : IpV6, format : IpV6Format) : Text {
+        let (a, b, c, d, e, f, g, h) = ip;
+        let groups = [a, b, c, d, e, f, g, h];
+
+        switch (format) {
+            case (#full) {
+                // Full format with leading zeros: 2001:0db8:0000:0000:0000:0000:0000:0001
+                let paddedGroups = Array.map<Nat16, Text>(
+                    groups,
+                    func(n : Nat16) : Text {
+                        let hex = nat16ToHex(n);
+                        switch (hex.size()) {
+                            case (1) "000" # hex;
+                            case (2) "00" # hex;
+                            case (3) "0" # hex;
+                            case (4) hex;
+                            case (_) hex;
+                        };
+                    },
+                );
+                Text.join(":", paddedGroups.vals());
+            };
+            case (#standard) {
+                // Standard format without leading zeros: 2001:db8:0:0:0:0:0:1
+                let hexGroups = Array.map<Nat16, Text>(groups, nat16ToHex);
+                Text.join(":", hexGroups.vals());
+            };
+            case (#compressed) {
+                // Compressed format with :: notation: 2001:db8::1
+                compressIpV6(groups);
+            };
+        };
+    };
+
+    private func compressIpV6(groups : [Nat16]) : Text {
+        // Find the longest sequence of consecutive zeros
+        var longestStart = -1;
+        var longestLength = 0;
+        var currentStart = -1;
+        var currentLength = 0;
+
+        for (i in groups.keys()) {
+            if (groups[i] == 0) {
+                if (currentStart == -1) {
+                    currentStart := i;
+                    currentLength := 1;
+                } else {
+                    currentLength += 1;
+                };
+            } else {
+                if (currentLength > longestLength) {
+                    longestStart := currentStart;
+                    longestLength := currentLength;
+                };
+                currentStart := -1;
+                currentLength := 0;
+            };
+        };
+
+        // Check if the last sequence is the longest
+        if (currentLength > longestLength) {
+            longestStart := currentStart;
+            longestLength := currentLength;
+        };
+
+        // Only compress if we have at least 2 consecutive zeros
+        if (longestLength < 2) {
+            let hexGroups = Array.map<Nat16, Text>(groups, nat16ToHex);
+            return Text.join(":", hexGroups.vals());
+        };
+
+        // Build the compressed string
+        var result = "";
+        var i = 0;
+
+        // Add groups before the compressed section
+        while (i < longestStart) {
+            if (result != "") result #= ":";
+            result #= nat16ToHex(groups[i]);
+            i += 1;
+        };
+
+        // Add the :: compression
+        if (longestStart == 0) {
+            // Compression starts at the beginning
+            result := "::";
+        } else {
+            result #= "::";
+        };
+
+        // Skip the compressed zeros
+        i += longestLength;
+
+        // Add groups after the compressed section
+        while (i < groups.size()) {
+            if (longestStart + longestLength < groups.size()) {
+                result #= nat16ToHex(groups[i]);
+                if (i < groups.size() - 1) result #= ":";
+            };
+            i += 1;
+        };
+
+        // Handle edge case where compression is at the end
+        if (longestStart + longestLength == groups.size() and longestStart > 0) {
+            result #= ":";
+        };
+
+        result;
+    };
     private func nat16ToHex(n : Nat16) : Text {
         let value = Nat16.toNat(n);
         if (value == 0) return "0";

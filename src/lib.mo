@@ -5,7 +5,6 @@ import Result "mo:new-base/Result";
 import List "mo:new-base/List";
 import Order "mo:new-base/Order";
 import Blob "mo:new-base/Blob";
-import Nat "mo:new-base/Nat";
 import TextX "mo:xtended-text/TextX";
 import Path "./Path";
 import Host "./Host";

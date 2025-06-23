@@ -1084,7 +1084,7 @@ test(
       {
         input = "https://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]";
         expectedHostType = "ipv6";
-        shouldContainInOutput = "[2001:db8:85a3:0:0:8a2e:370:7334]"; // Normalized format
+        shouldContainInOutput = "[2001:db8:85a3::8a2e:370:7334]"; // Normalized format
       },
       {
         input = "ftp://[::ffff:192.168.1.1]:21";
@@ -1105,7 +1105,7 @@ test(
           };
 
           // Verify roundtrip
-          let output = UrlKit.toText(url);
+          let output = UrlKit.toText(UrlKit.normalize(url));
           if (not Text.contains(output, #text(testCase.shouldContainInOutput))) {
             Debug.trap(
               "IPv6 formatting failed for " # testCase.input #
