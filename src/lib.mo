@@ -49,7 +49,7 @@ module UrlKit {
                     null // Empty fragment is treated as no fragment
                 } else {
                     // Decode the fragment
-                    switch (decodeValue(fragmentText)) {
+                    switch (decodeText(fragmentText)) {
                         case (#ok(decoded)) ?decoded;
                         case (#err(errMsg)) return #err("Invalid URL fragment: " # errMsg);
                     };
@@ -124,7 +124,7 @@ module UrlKit {
                 "&",
                 Array.map(
                     url.queryParams,
-                    func((k, v) : (Text, Text)) : Text = encodeValue(k) # "=" # encodeValue(v) // Now encoding both key and value
+                    func((k, v) : (Text, Text)) : Text = encodeText(k) # "=" # encodeText(v) // Now encoding both key and value
                 ).vals(),
             );
             result := result # "?" # queryString;
@@ -132,7 +132,7 @@ module UrlKit {
 
         // Add fragment
         switch (url.fragment) {
-            case (?fragment) result := result # "#" # encodeValue(fragment);
+            case (?fragment) result := result # "#" # encodeText(fragment);
             case (null) {};
         };
 
@@ -213,7 +213,7 @@ module UrlKit {
 
     // ===== ENCODING/DECODING =====
 
-    private func encodeValue(value : Text) : Text {
+    public func encodeText(value : Text) : Text {
         func isSafeChar(c : Char) : Bool {
             let nat32_char = Char.toNat32(c);
             (97 <= nat32_char and nat32_char <= 122) or // a-z
@@ -238,7 +238,7 @@ module UrlKit {
         result;
     };
 
-    private func decodeValue(value : Text) : Result.Result<Text, Text> {
+    public func decodeText(value : Text) : Result.Result<Text, Text> {
         var result = "";
         let charIter = PeekableIter.fromIter(value.chars());
         label l loop {
@@ -286,12 +286,12 @@ module UrlKit {
 
             let parts = Text.split(param, #char('='));
             let ?key = parts.next() else return #err("Invalid query parameter: Missing key in '" # param # "'");
-            let decodedKey = switch (decodeValue(key)) {
+            let decodedKey = switch (decodeText(key)) {
                 case (#ok(decoded)) decoded;
                 case (#err(errMsg)) return #err("Unable to decode query parameter key '" # key # "': " # errMsg);
             };
             let decodedValue = switch (parts.next()) {
-                case (?v) switch (decodeValue(v)) {
+                case (?v) switch (decodeText(v)) {
                     case (#ok(decoded)) decoded;
                     case (#err(errMsg)) return #err("Unable to decode query parameter value '" # v # "': " # errMsg);
                 };
