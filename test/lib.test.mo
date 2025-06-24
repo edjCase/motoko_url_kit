@@ -124,32 +124,32 @@ test(
       },
       {
         input = "192.168.1.1";
-        expectedHost = #ipv4((192, 168, 1, 1));
+        expectedHost = #ipV4((192, 168, 1, 1));
         expectedPort = null;
       },
       {
         input = "192.168.1.1:8080";
-        expectedHost = #ipv4((192, 168, 1, 1));
+        expectedHost = #ipV4((192, 168, 1, 1));
         expectedPort = ?8080;
       },
       {
         input = "[2001:db8::1]";
-        expectedHost = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedHost = #ipV6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
         expectedPort = null;
       },
       {
         input = "[2001:db8::1]:8080";
-        expectedHost = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedHost = #ipV6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
         expectedPort = ?8080;
       },
       {
         input = "[::1]";
-        expectedHost = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedHost = #ipV6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
         expectedPort = null;
       },
       {
         input = "[::1]:3000";
-        expectedHost = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+        expectedHost = #ipV6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
         expectedPort = ?3000;
       },
     ];
@@ -372,7 +372,7 @@ test(
         input = "https://192.168.1.1:3000/api";
         expected = {
           scheme = "https";
-          host = #ipv4((192, 168, 1, 1));
+          host = #ipV4((192, 168, 1, 1));
           path = ["api"];
           queryParams = [];
           port = ?3000;
@@ -413,7 +413,7 @@ test(
         input = "https://[2001:db8::1]";
         expected = {
           scheme = "https";
-          host = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+          host = #ipV6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
           path = [];
           queryParams = [];
           port = null;
@@ -424,7 +424,7 @@ test(
         input = "http://[::1]:8080";
         expected = {
           scheme = "http";
-          host = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
+          host = #ipV6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001));
           path = [];
           queryParams = [];
           port = ?8080;
@@ -435,7 +435,7 @@ test(
         input = "https://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]/path";
         expected = {
           scheme = "https";
-          host = #ipv6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
+          host = #ipV6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
           path = ["path"];
           queryParams = [];
           port = null;
@@ -446,7 +446,7 @@ test(
         input = "ftp://[2001:db8:85a3::8a2e:370:7334]:2121/files";
         expected = {
           scheme = "ftp";
-          host = #ipv6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
+          host = #ipV6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
           path = ["files"];
           queryParams = [];
           port = ?2121;
@@ -457,7 +457,7 @@ test(
         input = "https://[::ffff:192.168.1.1]?query=value";
         expected = {
           scheme = "https";
-          host = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xffff, 0xc0a8, 0x0101));
+          host = #ipV6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xffff, 0xc0a8, 0x0101));
           path = [];
           queryParams = [("query", "value")];
           port = null;
@@ -468,7 +468,7 @@ test(
         input = "https://[2001:db8::]:443/secure?auth=token#section";
         expected = {
           scheme = "https";
-          host = #ipv6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000));
+          host = #ipV6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000));
           path = ["secure"];
           queryParams = [("auth", "token")];
           port = ?443;
@@ -479,7 +479,7 @@ test(
         input = "http://[::]:80";
         expected = {
           scheme = "http";
-          host = #ipv6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000));
+          host = #ipV6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000));
           path = [];
           queryParams = [];
           port = ?80;
@@ -490,7 +490,7 @@ test(
         input = "https://[2001:DB8:85A3::8A2E:370:7334]"; // Mixed case
         expected = {
           scheme = "https";
-          host = #ipv6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
+          host = #ipV6((0x2001, 0x0db8, 0x85a3, 0x0000, 0x0000, 0x8a2e, 0x0370, 0x7334));
           path = [];
           queryParams = [];
           port = null;
@@ -1098,7 +1098,7 @@ test(
         case (#ok(url)) {
           // Verify host type
           switch (url.host) {
-            case (#ipv6(_)) {}; // Correct
+            case (#ipV6(_)) {}; // Correct
             case _ {
               Debug.trap("Expected IPv6 host type for: " # testCase.input);
             };

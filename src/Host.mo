@@ -13,8 +13,8 @@ module {
     public type Host = {
         #localhost;
         #domain : Domain.Domain;
-        #ipv4 : IpV4.IpV4;
-        #ipv6 : IpV6.IpV6;
+        #ipV4 : IpV4.IpV4;
+        #ipV6 : IpV6.IpV6;
     };
 
     public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat16), Text> {
@@ -117,12 +117,12 @@ module {
 
         // Check for IPv6
         switch (IpV6.fromText(cleanHost)) {
-            case (#ok(ipv6)) return #ok(#ipv6(ipv6));
+            case (#ok(ipv6)) return #ok(#ipV6(ipv6));
             case (#err(_)) (); // Try next option
         };
         // Check for IPv4
         switch (IpV4.fromText(cleanHost)) {
-            case (#ok(ipv4)) return #ok(#ipv4(ipv4));
+            case (#ok(ipv4)) return #ok(#ipV4(ipv4));
             case (#err(_)) (); // Try next option
         };
 
@@ -144,7 +144,7 @@ module {
     public func toText(host : Host, port : ?Nat16) : Text {
         let hostText = toTextHostOnly(host);
         let hostTextPlus = switch (host) {
-            case (#ipv6(_)) "[" # hostText # "]"; // Wrap IPv6 in brackets
+            case (#ipV6(_)) "[" # hostText # "]"; // Wrap IPv6 in brackets
             case (_) hostText;
         };
 
@@ -158,8 +158,8 @@ module {
         switch (host) {
             case (#localhost) "localhost";
             case (#domain(d)) Domain.toText(d);
-            case (#ipv4(ip)) IpV4.toText(ip);
-            case (#ipv6(ip)) IpV6.toText(ip, #compressed);
+            case (#ipV4(ip)) IpV4.toText(ip);
+            case (#ipV6(ip)) IpV6.toText(ip, #compressed);
         };
     };
 
@@ -167,8 +167,8 @@ module {
         switch (host) {
             case (#localhost) #localhost;
             case (#domain(d)) #domain(Domain.normalize(d));
-            case (#ipv4(ip)) #ipv4(ip);
-            case (#ipv6(ip)) #ipv6(ip);
+            case (#ipV4(ip)) #ipV4(ip);
+            case (#ipV6(ip)) #ipV6(ip);
         };
     };
 
