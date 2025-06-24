@@ -104,6 +104,24 @@ test(
         expectedPort = null;
       },
       {
+        input = "james.github.io"; // github.io is a suffix
+        expectedHost = #domain({
+          name = "james";
+          suffix = "github.io";
+          subdomains = [];
+        });
+        expectedPort = null;
+      },
+      {
+        input = "jim.git.io";
+        expectedHost = #domain({
+          name = "git";
+          suffix = "io";
+          subdomains = ["jim"];
+        });
+        expectedPort = null;
+      },
+      {
         input = "example.com:8080";
         expectedHost = #domain({
           name = "example";

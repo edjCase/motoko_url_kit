@@ -3,10 +3,10 @@ import Array "mo:new-base/Array";
 import Text "mo:new-base/Text";
 import Iter "mo:new-base/Iter";
 import Nat "mo:new-base/Nat";
+import List "mo:new-base/List";
 import DomainSuffixList "./data/DomainSuffixList";
 
 module {
-
     public type Domain = {
         name : Text;
         suffix : Text;
@@ -14,10 +14,10 @@ module {
     };
 
     public func fromText(domain : Text) : Result.Result<Domain, Text> {
-        fromTextWithSuffixList(domain, DomainSuffixList.value);
+        fromTextWithSuffixes(domain, DomainSuffixList.value);
     };
 
-    public func fromTextWithSuffixList(domain : Text, suffixList : [Text]) : Result.Result<Domain, Text> {
+    public func fromTextWithSuffixes(domain : Text, suffixes : [DomainSuffixList.SuffixEntry]) : Result.Result<Domain, Text> {
         let parts = Text.split(domain, #text("."));
         let partsArray = Iter.toArray(parts);
 
@@ -29,31 +29,51 @@ module {
             if (part.size() > 63) return #err("Contains label longer than 63 characters");
         };
 
-        // Find the longest matching suffix from DomainSuffixList.value
+        // Find the longest matching suffix by traversing the tree
+        let reversedParts = Array.reverse(partsArray); // Start from TLD
         var longestSuffix = "";
         var longestSuffixLength = 0;
 
-        // Check all possible suffixes from 1 to max possible length
-        let maxSuffixLength : Nat = partsArray.size() - 1; // Need at least one part for name
+        // Helper function to find a suffix entry by id
+        func findSuffixEntry(entries : [DomainSuffixList.SuffixEntry], targetId : Text) : ?DomainSuffixList.SuffixEntry {
+            Array.find<DomainSuffixList.SuffixEntry>(entries, func(entry) = Text.toLower(entry.id) == Text.toLower(targetId));
+        };
 
-        for (len in Nat.range(1, maxSuffixLength + 1)) {
-            let startIndex : Nat = partsArray.size() - len;
-            let candidateParts = Array.sliceToArray(partsArray, startIndex, startIndex + len + 1);
-            let candidateSuffix = Text.toLower(Text.join(".", candidateParts.vals()));
+        // Traverse the tree following the domain parts
+        var currentEntries = suffixes;
+        let currentPath : List.List<Text> = List.empty<Text>();
+        var pathLength = 0;
 
-            // Check if this suffix exists in DomainSuffixList.value
-            switch (Array.find<Text>(suffixList, func(s) = s == candidateSuffix)) {
-                case (?_) {
-                    if (len > longestSuffixLength) {
-                        longestSuffix := candidateSuffix;
-                        longestSuffixLength := len;
+        label f for (part in reversedParts.vals()) {
+            switch (findSuffixEntry(currentEntries, part)) {
+                case (?entry) {
+                    // Found this part in the tree
+                    List.add(currentPath, part);
+                    pathLength += 1;
+
+                    // If this entry is terminal, it's a valid suffix
+                    if (entry.isTerminal) {
+                        let suffixParts = Array.reverse(List.toArray(currentPath));
+                        longestSuffix := Text.join(".", suffixParts.vals());
+                        longestSuffixLength := pathLength;
                     };
+
+                    // Continue traversing to children
+                    currentEntries := entry.children;
                 };
-                case null {};
+                case (null) {
+                    // Part not found in tree, stop traversing
+                    break f;
+                };
             };
         };
 
         if (longestSuffix == "") return #err("Unrecognized suffix for '" # domain # "'");
+
+        // Ensure we have at least one part left for the domain name
+        if (partsArray.size() <= longestSuffixLength) {
+            return #err("Domain must have a name part before the suffix");
+        };
 
         let name = partsArray[partsArray.size() - longestSuffixLength - 1];
         let subdomains = if (partsArray.size() > longestSuffixLength + 1) {
