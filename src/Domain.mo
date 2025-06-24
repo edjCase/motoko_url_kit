@@ -3,7 +3,6 @@ import Array "mo:new-base/Array";
 import Text "mo:new-base/Text";
 import Iter "mo:new-base/Iter";
 import Nat "mo:new-base/Nat";
-import List "mo:new-base/List";
 import DomainSuffixList "./data/DomainSuffixList";
 
 module {
@@ -29,51 +28,57 @@ module {
             if (part.size() > 63) return #err("Contains label longer than 63 characters");
         };
 
-        // Find the longest matching suffix by traversing the tree
-        let reversedParts = Array.reverse(partsArray); // Start from TLD
-        var longestSuffix = "";
-        var longestSuffixLength = 0;
+        // Normalize to lowercase once
+        let normalizedParts = Array.map<Text, Text>(partsArray, Text.toLower);
 
-        // Helper function to find a suffix entry by id
+        // Helper function to find a suffix entry by id (case-insensitive)
         func findSuffixEntry(entries : [DomainSuffixList.SuffixEntry], targetId : Text) : ?DomainSuffixList.SuffixEntry {
-            Array.find<DomainSuffixList.SuffixEntry>(entries, func(entry) = Text.toLower(entry.id) == Text.toLower(targetId));
+            Array.find<DomainSuffixList.SuffixEntry>(entries, func(entry) = Text.toLower(entry.id) == targetId);
         };
 
-        // Traverse the tree following the domain parts
+        // Traverse the tree from TLD backwards, tracking only the length
         var currentEntries = suffixes;
-        let currentPath : List.List<Text> = List.empty<Text>();
-        var pathLength = 0;
+        var longestSuffixLength = 0;
+        var currentLength = 0;
 
-        label f for (part in reversedParts.vals()) {
+        // Iterate backwards through parts (from TLD to subdomain)
+        let partsSize = normalizedParts.size();
+        var i = partsSize;
+
+        label w while (i > 0) {
+            i -= 1;
+            let part = normalizedParts[i];
+
             switch (findSuffixEntry(currentEntries, part)) {
                 case (?entry) {
-                    // Found this part in the tree
-                    List.add(currentPath, part);
-                    pathLength += 1;
+                    currentLength += 1;
 
-                    // If this entry is terminal, it's a valid suffix
+                    // If this entry is terminal, update longest suffix length
                     if (entry.isTerminal) {
-                        let suffixParts = Array.reverse(List.toArray(currentPath));
-                        longestSuffix := Text.join(".", suffixParts.vals());
-                        longestSuffixLength := pathLength;
+                        longestSuffixLength := currentLength;
                     };
 
                     // Continue traversing to children
                     currentEntries := entry.children;
                 };
-                case (null) {
+                case null {
                     // Part not found in tree, stop traversing
-                    break f;
+                    break w;
                 };
             };
         };
 
-        if (longestSuffix == "") return #err("Unrecognized suffix for '" # domain # "'");
+        if (longestSuffixLength == 0) return #err("Unrecognized suffix for '" # domain # "'");
 
         // Ensure we have at least one part left for the domain name
         if (partsArray.size() <= longestSuffixLength) {
             return #err("Domain must have a name part before the suffix");
         };
+
+        // Build suffix string only once at the end
+        let suffixStartIndex : Nat = partsArray.size() - longestSuffixLength;
+        let suffixParts = Array.sliceToArray(partsArray, suffixStartIndex, suffixStartIndex + longestSuffixLength);
+        let suffix = Text.join(".", suffixParts.vals());
 
         let name = partsArray[partsArray.size() - longestSuffixLength - 1];
         let subdomains = if (partsArray.size() > longestSuffixLength + 1) {
@@ -84,7 +89,7 @@ module {
 
         #ok({
             name = name;
-            suffix = longestSuffix;
+            suffix = suffix;
             subdomains = subdomains;
         });
     };

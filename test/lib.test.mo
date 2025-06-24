@@ -122,6 +122,15 @@ test(
         expectedPort = null;
       },
       {
+        input = "jim.is.the.best.name.git.io";
+        expectedHost = #domain({
+          name = "git";
+          suffix = "io";
+          subdomains = ["jim", "is", "the", "best", "name"];
+        });
+        expectedPort = null;
+      },
+      {
         input = "example.com:8080";
         expectedHost = #domain({
           name = "example";
