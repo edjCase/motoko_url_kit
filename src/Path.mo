@@ -11,25 +11,38 @@ module {
 
     public type Segment = Text;
 
-    public func parse(path : Text) : Path {
+    public type TextFormat = {
+        #url;
+        #custom : {
+            separator : Text;
+        };
+    };
+
+    public func parse(path : Text) : Path = parseWithSeparator(path, "/");
+
+    public func parseWithSeparator(path : Text, separator : Text) : Path {
         // Handle edge cases first
-        if (path == "/" or path == "") {
+        if (path == "" or path == separator) {
             return [];
         };
 
-        // Split by '/' and filter out empty segments
+        // Split by the custom separator and filter out empty segments
         path
-        |> Text.split(_, #char('/'))
+        |> Text.split(_, #text(separator))
         |> Iter.filter(_, func(x : Text) : Bool { x != "" })
         |> Iter.toArray(_);
     };
 
     public func toText(path : Path) : Text {
+        toTextWithSeparator(path, "/");
+    };
+
+    public func toTextWithSeparator(path : Path, separator : Text) : Text {
         // Handle empty path
         if (path.size() == 0) {
             return "";
         };
-        "/" # Text.join("/", path.vals());
+        "/" # Text.join(separator, path.vals());
     };
 
     public func match(prefix : Path, path : Path) : ?Path {

@@ -98,7 +98,7 @@ test(
         input = "example.com";
         expectedHost = #domain({
           name = "example";
-          tld = "com";
+          suffix = "com";
           subdomains = [];
         });
         expectedPort = null;
@@ -107,7 +107,7 @@ test(
         input = "example.com:8080";
         expectedHost = #domain({
           name = "example";
-          tld = "com";
+          suffix = "com";
           subdomains = [];
         });
         expectedPort = ?8080;
@@ -183,7 +183,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -209,7 +209,7 @@ test(
           scheme = "ftp";
           host = #domain({
             name = "example";
-            tld = "org";
+            suffix = "org";
             subdomains = ["files"];
           });
           path = [];
@@ -224,7 +224,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [""];
@@ -239,7 +239,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = ["path", "to", "resource"];
@@ -254,7 +254,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -269,7 +269,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -284,7 +284,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -299,7 +299,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -314,7 +314,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -329,7 +329,7 @@ test(
           scheme = "custom-scheme";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -344,7 +344,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = ["sub", "domain"];
           });
           path = ["path"];
@@ -359,7 +359,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = [];
@@ -385,7 +385,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = ["page"];
@@ -400,7 +400,7 @@ test(
           scheme = "https";
           host = #domain({
             name = "example";
-            tld = "com";
+            suffix = "com";
             subdomains = [];
           });
           path = ["path"];
