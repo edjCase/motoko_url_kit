@@ -35,6 +35,11 @@ module {
     private func parseNat8(text : Text) : Result.Result<Nat8, Text> {
         if (text.size() == 0) return #err("Empty octet");
 
+        // Check for leading zeros (reject "01", "001", etc., but allow "0")
+        if (text.size() > 1 and Text.startsWith(text, #char('0'))) {
+            return #err("Leading zeros not allowed");
+        };
+
         var result : Nat = 0;
         for (char in text.chars()) {
             if (char < '0' or char > '9') return #err("Non-numeric character");

@@ -207,15 +207,4 @@ module {
         (code >= 48 and code <= 57) or // 0-9
         code == 45; // hyphen only
     };
-
-    // Keep the original function for full domain validation (includes dots)
-    private func isValidDomainChar(char : Char) : Bool {
-        let code = Char.toNat32(char);
-        // Letters, digits, hyphens, dots
-        (code >= 97 and code <= 122) or // a-z
-        (code >= 65 and code <= 90) or // A-Z
-        (code >= 48 and code <= 57) or // 0-9
-        code == 45 or // hyphen
-        code == 46; // dot
-    };
 };

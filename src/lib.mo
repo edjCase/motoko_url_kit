@@ -30,6 +30,12 @@ module UrlKit {
             return #err("Invalid URL: Empty scheme");
         };
 
+        // Validate scheme characters
+        switch (validateScheme(scheme)) {
+            case (#err(msg)) return #err("Invalid URL scheme: " # msg);
+            case (#ok) {};
+        };
+
         let ?hostAndPathAndQueryAndFragment = schemeParts.next() else return #err("Invalid URL: Missing host or path");
 
         if (schemeParts.next() != null) {
@@ -92,6 +98,11 @@ module UrlKit {
             case (null) hostAndPath;
         };
 
+        // Validate no leading/trailing whitespace in host part
+        if (hostAndPortText != Text.trim(hostAndPortText, #text(" "))) {
+            return #err("Invalid URL: Host cannot have leading or trailing whitespace");
+        };
+
         let (host, port) = switch (Host.fromText(hostAndPortText)) {
             case (#ok(result)) result;
             case (#err(errMsg)) return #err("Invalid URL host: " # errMsg);
@@ -100,6 +111,10 @@ module UrlKit {
         // The rest is the path
         let path = List.empty<Text>();
         for (part in hostAndPathParts) {
+            // Validate path segment for invalid characters
+            if (containsInvalidPathChars(part)) {
+                return #err("Invalid URL: Path contains invalid characters");
+            };
             List.add(path, part);
         };
 
@@ -274,6 +289,63 @@ module UrlKit {
 
     // ===== PRIVATE HELPER FUNCTIONS =====
 
+    private func validateScheme(scheme : Text) : Result.Result<(), Text> {
+        if (scheme.size() == 0) return #err("Empty scheme");
+
+        let chars = scheme.chars();
+        let ?firstChar = chars.next() else return #err("Empty scheme");
+
+        // First character must be a letter
+        if (not isLetter(firstChar)) {
+            return #err("Scheme must start with a letter");
+        };
+
+        // Scheme cannot end with hyphen
+        if (Text.endsWith(scheme, #char('-'))) {
+            return #err("Scheme cannot end with hyphen");
+        };
+
+        // Check for consecutive dots
+        if (Text.contains(scheme, #text(".."))) {
+            return #err("Scheme cannot contain consecutive dots");
+        };
+
+        // Remaining characters must be letters, digits, +, -, or .
+        for (char in chars) {
+            if (not isValidSchemeChar(char)) {
+                return #err("Invalid character '" # Char.toText(char) # "' in scheme");
+            };
+        };
+
+        #ok(());
+    };
+
+    private func isLetter(char : Char) : Bool {
+        let code = Char.toNat32(char);
+        (code >= 65 and code <= 90) or (code >= 97 and code <= 122); // A-Z or a-z
+    };
+
+    private func isValidSchemeChar(char : Char) : Bool {
+        let code = Char.toNat32(char);
+        (code >= 65 and code <= 90) or // A-Z
+        (code >= 97 and code <= 122) or // a-z
+        (code >= 48 and code <= 57) or // 0-9
+        code == 43 or // +
+        code == 45 or // -
+        code == 46; // .
+    };
+
+    private func containsInvalidPathChars(segment : Text) : Bool {
+        for (char in segment.chars()) {
+            let code = Char.toNat32(char);
+            // Reject spaces and control characters (0-31, 127)
+            if (code == 32 or (code >= 0 and code <= 31) or code == 127) {
+                return true;
+            };
+        };
+        false;
+    };
+
     private func parseQueryString(queryString : Text) : Result.Result<[(Text, Text)], Text> {
         if (TextX.isEmptyOrWhitespace(queryString)) {
             return #ok([]);
@@ -286,6 +358,9 @@ module UrlKit {
 
             let parts = Text.split(param, #char('='));
             let ?key = parts.next() else return #err("Invalid query parameter: Missing key in '" # param # "'");
+            if (TextX.isEmptyOrWhitespace(key)) {
+                return #err("Invalid query parameter: Empty key in '" # param # "'");
+            };
             let decodedKey = switch (decodeText(key)) {
                 case (#ok(decoded)) decoded;
                 case (#err(errMsg)) return #err("Unable to decode query parameter key '" # key # "': " # errMsg);
