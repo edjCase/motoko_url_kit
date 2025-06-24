@@ -552,6 +552,7 @@ test(
       { input = "https://" },
       { input = "://example.com" },
       { input = "https://example.com?param1=value1?param2=value2" },
+      { input = "https://-example.com" },
       { input = "https://://example.com" },
       { input = "http://" },
       { input = "https://[2001:db8::1::2]" }, // Multiple ::
@@ -563,6 +564,165 @@ test(
       { input = "https://2001:db8::1" }, // Missing brackets
       { input = "https://[2001:db8::1" }, // Missing closing bracket
       { input = "https://2001:db8::1]" }, // Missing opening bracket
+
+      // Additional Domain/Host failures
+      { input = "https://example-.com" }, // Domain ending with hyphen
+      { input = "https://.example.com" }, // Domain starting with dot
+      { input = "https://example.com." }, // Domain ending with dot
+      { input = "https://example..com" }, // Consecutive dots in domain
+      { input = "https://ex ample.com" }, // Space in domain
+      { input = "https://example.c" }, // TLD too short
+      { input = "https://example." }, // Empty TLD
+      { input = "https://.com" }, // Missing domain name
+      { input = "https://example.com-" }, // TLD ending with hyphen
+      { input = "https://-example-.com" }, // Multiple hyphen issues
+      { input = "https://example@.com" }, // Invalid character in domain
+      { input = "https://example#.com" }, // Invalid character in domain
+      { input = "https://example$.com" }, // Invalid character in domain
+      { input = "https://example%.com" }, // Invalid character in domain
+      { input = "https://example^.com" }, // Invalid character in domain
+      { input = "https://example&.com" }, // Invalid character in domain
+      { input = "https://example*.com" }, // Invalid character in domain
+      { input = "https://example(.com" }, // Invalid character in domain
+      { input = "https://example).com" }, // Invalid character in domain
+      { input = "https://example=.com" }, // Invalid character in domain
+      { input = "https://example+.com" }, // Invalid character in domain
+      { input = "https://example[.com" }, // Invalid character in domain
+      { input = "https://example].com" }, // Invalid character in domain
+      { input = "https://example{.com" }, // Invalid character in domain
+      { input = "https://example}.com" }, // Invalid character in domain
+      { input = "https://example|.com" }, // Invalid character in domain
+      { input = "https://example\\.com" }, // Invalid character in domain
+      { input = "https://example\".com" }, // Invalid character in domain
+      { input = "https://example'.com" }, // Invalid character in domain
+      { input = "https://example;.com" }, // Invalid character in domain
+      { input = "https://example:.com" }, // Invalid character in domain (colon outside port)
+      { input = "https://example/.com" }, // Invalid character in domain (slash)
+      { input = "https://example?.com" }, // Invalid character in domain (question mark)
+      { input = "https://example<.com" }, // Invalid character in domain
+      { input = "https://example>.com" }, // Invalid character in domain
+
+      // Very long domain names
+      {
+        input = "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com";
+      }, // Single label too long (>63 chars)
+      {
+        input = "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.com";
+      }, // Total domain too long (>253 chars)
+
+      // Empty labels
+      { input = "https://example..com" }, // Empty label between dots
+      { input = "https://.example.com" }, // Empty label at start
+      { input = "https://example.com." }, // Empty label at end (trailing dot)
+
+      // IPv4 address failures
+      { input = "https://256.1.1.1" }, // Octet too large
+      { input = "https://1.256.1.1" }, // Octet too large
+      { input = "https://1.1.256.1" }, // Octet too large
+      { input = "https://1.1.1.256" }, // Octet too large
+      { input = "https://999.999.999.999" }, // All octets too large
+      { input = "https://1.1.1" }, // Too few octets
+      { input = "https://1.1.1.1.1" }, // Too many octets
+      { input = "https://1.1.1.-1" }, // Negative octet
+      { input = "https://1.1.1.01" }, // Leading zero in octet
+      { input = "https://1.1.1.1a" }, // Non-numeric in octet
+      { input = "https://1.1.1.1.1.1" }, // Way too many octets
+      { input = "https://..." }, // Only dots
+      { input = "https://192.168.1" }, // Incomplete IPv4
+      { input = "https://192.168.1." }, // Trailing dot in IPv4
+      { input = "https://.192.168.1.1" }, // Leading dot in IPv4
+
+      // More IPv6 failures
+      { input = "https://[:::]" }, // Invalid triple colon
+      { input = "https://[2001:db8:::1]" }, // Invalid triple colon
+      { input = "https://[2001:db8::1::]" }, // Double compression
+      { input = "https://[::2001:db8::]" }, // Double compression
+      { input = "https://[2001:db8:85a3:0000:0000:8a2e:0370:7334:0000]" }, // Too many groups (9 instead of 8)
+      { input = "https://[2001:db8:85a3:0000:0000:8a2e:0370]" }, // Too few groups without compression
+      { input = "https://[2001::db8::1]" }, // Multiple compressions
+      { input = "https://[::ffff:192.168.1.256]" }, // Invalid IPv4 in IPv6
+      { input = "https://[::ffff:192.168.1]" }, // Incomplete IPv4 in IPv6
+      { input = "https://[2001:db8::192.168.1.1.1]" }, // Too many IPv4 octets in IPv6
+      { input = "https://[z001:db8::1]" }, // Invalid hex character (z)
+      { input = "https://[2001:gb8::1]" }, // Invalid hex character (g)
+      { input = "https://[]" }, // Empty IPv6
+      { input = "https://[" }, // Unclosed IPv6 bracket
+      { input = "https://]" }, // Unopened IPv6 bracket
+      { input = "https://[::ffff::]" }, // Invalid compression with IPv4 mapping
+
+      // Protocol/Scheme failures
+      { input = "ht tp://example.com" }, // Space in protocol
+      { input = "https ://example.com" }, // Space before colon
+      { input = "https:// example.com" }, // Space after slashes
+      { input = "https://example.com" # "\n" }, // Newline in URL
+      { input = "https://example.com" # "\t" }, // Tab in URL
+      { input = "https://example.com" # "\r" }, // Carriage return in URL
+      { input = "123://example.com" }, // Numeric protocol
+      { input = "-https://example.com" }, // Protocol starting with hyphen
+      { input = "https-://example.com" }, // Protocol ending with hyphen
+      { input = "ht@tps://example.com" }, // Invalid character in protocol
+      { input = "ht#tps://example.com" }, // Invalid character in protocol
+      { input = "ht$tps://example.com" }, // Invalid character in protocol
+      { input = "h..ttps://example.com" }, // Dots in protocol
+      { input = ":///" }, // Only protocol separator
+      { input = "::example.com" }, // Invalid protocol separator
+      { input = "https:example.com" }, // Missing slashes
+      { input = "https:/example.com" }, // Only one slash
+      { input = "https:///example.com" }, // Too many slashes
+
+      // Port failures
+      { input = "https://example.com:abc" }, // Non-numeric port
+      { input = "https://example.com:65536" }, // Port too large
+      { input = "https://example.com:99999" }, // Port way too large
+      { input = "https://example.com:-1" }, // Negative port
+      { input = "https://example.com:0" }, // Zero port (typically invalid)
+      { input = "https://example.com:" }, // Empty port
+      { input = "https://example.com:80a" }, // Port with letters
+      { input = "https://example.com:80:80" }, // Multiple ports
+      { input = "https://example.com::80" }, // Double colon before port
+      { input = "https://example.com:80:" }, // Trailing colon after port
+
+      // Path failures (if parsing paths)
+      { input = "https://example.com/ invalid path" }, // Space in path
+      { input = "https://example.com/path with spaces" }, // Spaces in path
+
+      // Query string failures
+      { input = "https://example.com?param=value?invalid" }, // Multiple question marks
+      { input = "https://example.com?=value" }, // Empty parameter name
+      { input = "https://example.com?param=" }, // Empty parameter value (might be valid)
+      { input = "https://example.com? invalid=value" }, // Space in query
+      { input = "https://example.com?param=val ue" }, // Space in query value
+
+      // Fragment failures
+      { input = "https://example.com#fragment#invalid" }, // Multiple fragments
+      { input = "https://example.com# invalid fragment" }, // Space in fragment
+
+      // User info failures (if supported)
+      { input = "https://user@:password@example.com" }, // Multiple @ symbols
+      { input = "https://user:@example.com" }, // Empty password
+      { input = "https://:password@example.com" }, // Empty username
+      { input = "https://user:pass word@example.com" }, // Space in password
+      { input = "https://us er:password@example.com" }, // Space in username
+      { input = "https://user:pass@word@example.com" }, // @ in password
+
+      // Mixed and edge cases
+      { input = "https://例え.テスト" }, // International domain (might be valid with punycode)
+      { input = "https://xn--invalid-punycode" }, // Invalid punycode
+      { input = "https://exam\nple.com" }, // Newline in domain
+      { input = "https://exam\tple.com" }, // Tab in domain
+      { input = "https://exam\rple.com" }, // Carriage return in domain
+
+      // Extremely malformed cases
+      { input = "complete garbage" },
+      { input = "12345" },
+      { input = "@#$%^&*()" },
+      { input = "........" },
+      { input = "////////" },
+      { input = "????????" },
+      { input = "########" },
+      { input = "$$$$$$$$" },
+      { input = "   " }, // Only whitespace
+      { input = "\n\t\r" }, // Only control characters
     ];
 
     for (testCase in testCases.vals()) {

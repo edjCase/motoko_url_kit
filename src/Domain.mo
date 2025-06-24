@@ -3,6 +3,8 @@ import Array "mo:new-base/Array";
 import Text "mo:new-base/Text";
 import Iter "mo:new-base/Iter";
 import Nat "mo:new-base/Nat";
+import Char "mo:new-base/Char";
+import TextX "mo:xtended-text/TextX";
 import DomainSuffixList "./data/DomainSuffixList";
 
 module {
@@ -86,12 +88,15 @@ module {
         } else {
             [];
         };
-
-        #ok({
+        let d : Domain = {
             name = name;
             suffix = suffix;
             subdomains = subdomains;
-        });
+        };
+        switch (validate(d)) {
+            case (#err(err)) #err(err);
+            case (#ok) #ok(d);
+        };
     };
 
     public func toText(domain : Domain) : Text {
@@ -107,50 +112,110 @@ module {
         };
     };
 
-    // TODO validate
-    // public func isValid(domain : Text) : Bool {
-    //     switch (validate(domain)) {
-    //         case (#ok(_)) true;
-    //         case (#err(_)) false;
-    //     };
-    // };
+    public func validate(domain : Domain) : Result.Result<(), Text> {
+        // Helper function to validate a single label (subdomain part, name, or suffix part)
+        func validateLabel(label_ : Text, labelType : Text) : Result.Result<(), Text> {
+            if (TextX.isEmptyOrWhitespace(label_)) {
+                return #err(labelType # " cannot be empty");
+            };
 
-    // public func validate(domain : Domain) : Result.Result<(), Text> {
-    //     if (domain == "") {
-    //         return #err("Domain cannot be empty");
-    //     };
+            if (label_.size() > 63) {
+                return #err(labelType # " too long: maximum 63 characters, got " # Nat.toText(label_.size()));
+            };
 
-    //     if (domain.size() > 253) {
-    //         return #err("Domain too long: maximum 253 characters");
-    //     };
+            // Check for valid domain characters
+            for (char in label_.chars()) {
+                if (not isValidLabelChar(char)) {
+                    return #err("Invalid character in " # labelType # ": " # Char.toText(char));
+                };
+            };
 
-    //     // Check for valid domain characters
-    //     for (char in domain.chars()) {
-    //         if (not isValidDomainChar(char)) {
-    //             return #err("Invalid character in domain: " # Char.toText(char));
-    //         };
-    //     };
+            // Cannot start or end with hyphen
+            if (Text.startsWith(label_, #char('-')) or Text.endsWith(label_, #char('-'))) {
+                return #err(labelType # " cannot start or end with hyphen");
+            };
 
-    //     // Cannot start or end with hyphen or dot
-    //     if (Text.startsWith(domain, #char '-') or Text.endsWith(domain, #char '-')) {
-    //         return #err("Domain cannot start or end with hyphen");
-    //     };
+            #ok(());
+        };
 
-    //     if (Text.startsWith(domain, #char '.') or Text.endsWith(domain, #char '.')) {
-    //         return #err("Domain cannot start or end with dot");
-    //     };
+        // Validate domain name
+        switch (validateLabel(domain.name, "domain name")) {
+            case (#err(err)) return #err(err);
+            case (#ok) {};
+        };
 
-    //     #ok(());
-    // };
+        // Validate suffix (split by dots and validate each part)
+        if (TextX.isEmptyOrWhitespace(domain.suffix)) {
+            return #err("Domain suffix cannot be empty");
+        };
 
-    // // Check if character is valid in domain name
-    // private func isValidDomainChar(char : Char) : Bool {
-    //     let code = Char.toNat32(char);
-    //     // Letters, digits, hyphens, dots
-    //     (code >= 97 and code <= 122) or // a-z
-    //     (code >= 65 and code <= 90) or // A-Z
-    //     (code >= 48 and code <= 57) or // 0-9
-    //     code == 45 or // hyphen
-    //     code == 46; // dot
-    // };
+        let suffixParts = Text.split(domain.suffix, #text("."));
+        let suffixPartsArray = Iter.toArray(suffixParts);
+
+        for (i in suffixPartsArray.keys()) {
+            let part = suffixPartsArray[i];
+            switch (validateLabel(part, "suffix part")) {
+                case (#err(err)) return #err(err);
+                case (#ok) {};
+            };
+        };
+
+        // Validate subdomains
+        for (i in domain.subdomains.keys()) {
+            let subdomain = domain.subdomains[i];
+            switch (validateLabel(subdomain, "subdomain")) {
+                case (#err(err)) return #err(err);
+                case (#ok) {};
+            };
+        };
+
+        // Check total length constraints
+        // Calculate total length including dots
+        var totalLength = domain.name.size() + domain.suffix.size() + 1; // +1 for dot between name and suffix
+
+        // Add subdomain lengths and dots
+        for (subdomain in domain.subdomains.vals()) {
+            totalLength += subdomain.size() + 1; // +1 for dot after each subdomain
+        };
+
+        if (totalLength > 253) {
+            return #err("Domain too long: maximum 253 characters, got " # Nat.toText(totalLength));
+        };
+
+        // Additional checks for the complete domain
+        let fullDomain = toText(domain);
+
+        // Check for consecutive dots (shouldn't happen with proper parsing, but good to verify)
+        if (Text.contains(fullDomain, #text(".."))) {
+            return #err("Domain cannot contain consecutive dots");
+        };
+
+        // Check that domain doesn't start or end with dot
+        if (Text.startsWith(fullDomain, #char('.')) or Text.endsWith(fullDomain, #char('.'))) {
+            return #err("Domain cannot start or end with dot");
+        };
+
+        #ok(());
+    };
+
+    // Updated character validation - more restrictive for labels (no dots allowed in individual labels)
+    private func isValidLabelChar(char : Char) : Bool {
+        let code = Char.toNat32(char);
+        // Letters, digits, hyphens only (no dots in individual labels)
+        (code >= 97 and code <= 122) or // a-z
+        (code >= 65 and code <= 90) or // A-Z
+        (code >= 48 and code <= 57) or // 0-9
+        code == 45; // hyphen only
+    };
+
+    // Keep the original function for full domain validation (includes dots)
+    private func isValidDomainChar(char : Char) : Bool {
+        let code = Char.toNat32(char);
+        // Letters, digits, hyphens, dots
+        (code >= 97 and code <= 122) or // a-z
+        (code >= 65 and code <= 90) or // A-Z
+        (code >= 48 and code <= 57) or // 0-9
+        code == 45 or // hyphen
+        code == 46; // dot
+    };
 };
