@@ -18,9 +18,9 @@ module {
         };
     };
 
-    public func parse(path : Text) : Path = parseWithSeparator(path, "/");
+    public func fromText(path : Text) : Path = fromTextWithSeparator(path, "/");
 
-    public func parseWithSeparator(path : Text, separator : Text) : Path {
+    public func fromTextWithSeparator(path : Text, separator : Text) : Path {
         // Handle edge cases first
         if (path == "" or path == separator) {
             return [];
