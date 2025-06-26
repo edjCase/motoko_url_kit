@@ -11,17 +11,19 @@ import IpV6 "./IpV6";
 
 module {
     public type Host = {
-        #localhost;
         #domain : Domain.Domain;
+        #hostname : Text;
         #ipV4 : IpV4.IpV4;
         #ipV6 : IpV6.IpV6;
     };
 
     public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat16), Text> {
-        // Basic validation
-        if (TextX.isEmptyOrWhitespace(hostAndPort)) return #err("Host cannot be empty");
-
         let trimmed = Text.trim(hostAndPort, #text(" "));
+
+        // Handle empty case
+        if (TextX.isEmptyOrWhitespace(trimmed)) {
+            return #err("Invalid host: Host cannot be empty");
+        };
 
         // Handle IPv6 addresses (which may have ports)
         if (Text.startsWith(trimmed, #text("["))) {
@@ -97,13 +99,12 @@ module {
     };
 
     private func fromTextHostOnly(host : Text) : Result.Result<Host, Text> {
-        // Basic host validation
-        if (TextX.isEmptyOrWhitespace(host)) return #err("Host cannot be empty");
-
         let trimmedHost = Text.trim(host, #text(" "));
 
-        // Check for localhost
-        if (Text.toLower(trimmedHost) == "localhost") return #ok(#localhost);
+        // Handle empty host
+        if (trimmedHost == "") {
+            return #err("Invalid host: Host cannot be empty");
+        };
 
         // Check for IPv6 (contains colons, might be wrapped in brackets)
         let cleanHost = if (Text.startsWith(trimmedHost, #text("[")) and Text.endsWith(trimmedHost, #text("]"))) {
@@ -120,16 +121,23 @@ module {
             case (#ok(ipv6)) return #ok(#ipV6(ipv6));
             case (#err(_)) (); // Try next option
         };
+
         // Check for IPv4
         switch (IpV4.fromText(cleanHost)) {
             case (#ok(ipv4)) return #ok(#ipV4(ipv4));
             case (#err(_)) (); // Try next option
         };
 
-        // Parse as domain
+        // Try to parse as domain
         switch (Domain.fromText(cleanHost)) {
             case (#ok(domain)) return #ok(#domain(domain));
-            case (#err(msg)) return #err("Invalid domain: " # msg);
+            case (#err(_)) {
+                // If not a valid domain, validate as hostname
+                switch (validateHostname(cleanHost)) {
+                    case (#ok()) return #ok(#hostname(cleanHost));
+                    case (#err(msg)) return #err(msg);
+                };
+            };
         };
     };
 
@@ -139,6 +147,56 @@ module {
             return #err("Invalid port: Port must be between 1 and 65535");
         };
         #ok(Nat16.fromNat(port));
+    };
+
+    private func validateHostname(hostname : Text) : Result.Result<(), Text> {
+        // Basic length check
+        if (hostname.size() == 0) return #err("Hostname cannot be empty");
+        if (hostname.size() > 253) return #err("Hostname too long (max 253 characters)");
+
+        // Can't start or end with hyphen or dot
+        if (Text.startsWith(hostname, #text("-")) or Text.endsWith(hostname, #text("-"))) {
+            return #err("Hostname cannot start or end with hyphen");
+        };
+        if (Text.startsWith(hostname, #text(".")) or Text.endsWith(hostname, #text("."))) {
+            return #err("Hostname cannot start or end with dot");
+        };
+
+        // Check for consecutive dots
+        if (Text.contains(hostname, #text(".."))) {
+            return #err("Hostname cannot contain consecutive dots");
+        };
+
+        // Validate each label
+        let labels = Text.split(hostname, #text("."));
+        for (label_ in labels) {
+            switch (validateHostnameLabel(label_)) {
+                case (#err(msg)) return #err(msg);
+                case (#ok()) ();
+            };
+        };
+
+        #ok();
+    };
+
+    private func validateHostnameLabel(label_ : Text) : Result.Result<(), Text> {
+        if (label_.size() == 0) return #err("Hostname label cannot be empty");
+        if (label_.size() > 63) return #err("Hostname label too long (max 63 characters)");
+
+        // Can't start or end with hyphen
+        if (Text.startsWith(label_, #text("-")) or Text.endsWith(label_, #text("-"))) {
+            return #err("Hostname label cannot start or end with hyphen");
+        };
+
+        // Check valid characters (alphanumeric and hyphen only)
+        for (char in label_.chars()) {
+            let isValidChar = (char >= 'a' and char <= 'z') or (char >= 'A' and char <= 'Z') or (char >= '0' and char <= '9') or char == '-';
+            if (not isValidChar) {
+                return #err("Hostname label contains invalid character: " # Text.fromChar(char));
+            };
+        };
+
+        #ok();
     };
 
     public func toText(host : Host, port : ?Nat16) : Text {
@@ -156,8 +214,8 @@ module {
 
     private func toTextHostOnly(host : Host) : Text {
         switch (host) {
-            case (#localhost) "localhost";
             case (#domain(d)) Domain.toText(d);
+            case (#hostname(name)) name;
             case (#ipV4(ip)) IpV4.toText(ip);
             case (#ipV6(ip)) IpV6.toText(ip, #compressed);
         };
@@ -165,8 +223,8 @@ module {
 
     public func normalize(host : Host) : Host {
         switch (host) {
-            case (#localhost) #localhost;
             case (#domain(d)) #domain(Domain.normalize(d));
+            case (#hostname(name)) #hostname(Text.toLower(name));
             case (#ipV4(ip)) #ipV4(ip);
             case (#ipV6(ip)) #ipV6(ip);
         };

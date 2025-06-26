@@ -14,47 +14,81 @@ import PeekableIter "mo:itertools/PeekableIter";
 module UrlKit {
 
     public type Url = {
-        scheme : Text;
-        host : Host.Host;
+        scheme : ?Text;
+        authority : ?Authority;
         path : Path.Path;
         queryParams : [(Text, Text)];
-        port : ?Nat16;
         fragment : ?Text;
     };
 
+    public type Authority = {
+        user : ?UserInfo;
+        host : Host.Host;
+        port : ?Nat16;
+    };
+
+    public type UserInfo = {
+        username : Text;
+        password : Text;
+    };
+
     public func fromText(url : Text) : Result.Result<Url, Text> {
-        // Extract scheme (http://, https://, etc.)
-        let schemeParts = Text.split(url, #text("://"));
-        let ?scheme : ?Text = schemeParts.next() else return #err("Invalid URL: Missing scheme");
-        if (TextX.isEmptyOrWhitespace(scheme)) {
-            return #err("Invalid URL: Empty scheme");
+        if (TextX.isEmptyOrWhitespace(url)) {
+            return #err("Invalid URL: Empty string");
         };
 
-        // Validate scheme characters
-        switch (validateScheme(scheme)) {
-            case (#err(msg)) return #err("Invalid URL scheme: " # msg);
-            case (#ok) {};
-        };
+        var remainingUrl = url;
+        var scheme : ?Text = null;
 
-        let ?hostAndPathAndQueryAndFragment = schemeParts.next() else return #err("Invalid URL: Missing host or path");
+        // Look for scheme (first colon)
+        let colonParts = Text.split(url, #char(':'));
+        switch (colonParts.next()) {
+            case (?firstPart) {
+                switch (colonParts.next()) {
+                    case (?restPart) {
+                        // Found a colon, so we have a scheme
+                        let schemeText = firstPart;
+                        if (TextX.isEmptyOrWhitespace(schemeText)) {
+                            return #err("Invalid URL: Empty scheme");
+                        };
 
-        if (schemeParts.next() != null) {
-            return #err("Invalid URL: Multiple '://' found");
+                        // Validate scheme characters
+                        switch (validateScheme(schemeText)) {
+                            case (#err(msg)) return #err("Invalid URL scheme: " # msg);
+                            case (#ok) {};
+                        };
+
+                        scheme := ?schemeText;
+                        // Reconstruct remaining URL from the rest of the parts
+                        var remaining = restPart;
+                        for (part in colonParts) {
+                            remaining := remaining # ":" # part;
+                        };
+                        remainingUrl := remaining;
+                    };
+                    case (null) {
+                        // No colon found, treat entire URL as path
+                        remainingUrl := url;
+                    };
+                };
+            };
+            case (null) {
+                // Empty URL already handled above
+            };
         };
 
         // Extract fragment (#fragment)
-        let fragmentParts = Text.split(hostAndPathAndQueryAndFragment, #char('#'));
-        let hostAndPathAndQuery = switch (fragmentParts.next()) {
+        let fragmentParts = Text.split(remainingUrl, #char('#'));
+        let urlWithoutFragment = switch (fragmentParts.next()) {
             case (?part) part;
-            case (null) hostAndPathAndQueryAndFragment;
+            case (null) remainingUrl;
         };
 
         let fragment : ?Text = switch (fragmentParts.next()) {
             case (?fragmentText) {
                 if (TextX.isEmptyOrWhitespace(fragmentText)) {
-                    null // Empty fragment is treated as no fragment
+                    null;
                 } else {
-                    // Decode the fragment
                     switch (decodeText(fragmentText)) {
                         case (#ok(decoded)) ?decoded;
                         case (#err(errMsg)) return #err("Invalid URL fragment: " # errMsg);
@@ -64,73 +98,128 @@ module UrlKit {
             case (null) null;
         };
 
-        // Check for multiple '#' characters
         if (fragmentParts.next() != null) {
             return #err("Invalid URL: Multiple '#' found");
         };
 
         // Extract query parameters (?key=value&key2=value2)
-        let queryParts = Text.split(hostAndPathAndQuery, #char('?'));
-        let (hostAndPath, queryParams) : (Text, [(Text, Text)]) = switch (queryParts.next()) {
-            case (?hostAndPath) {
+        let queryParts = Text.split(urlWithoutFragment, #char('?'));
+        let (urlWithoutQuery, queryParams) : (Text, [(Text, Text)]) = switch (queryParts.next()) {
+            case (?urlPart) {
                 switch (queryParts.next()) {
                     case (?queryString) {
                         let queryParams = switch (parseQueryString(queryString)) {
                             case (#ok(parsedParams)) parsedParams;
                             case (#err(errMsg)) return #err("Invalid URL query parameters: " # errMsg);
                         };
-                        (hostAndPath, queryParams);
+                        (urlPart, queryParams);
                     };
-                    case (null) (hostAndPath, []); // No query parameters
+                    case (null) (urlPart, []);
                 };
             };
-            case (null) (hostAndPathAndQuery, []); // No query parameters
+            case (null) (urlWithoutFragment, []);
         };
 
         if (queryParts.next() != null) {
             return #err("Invalid URL: Multiple '?' found");
         };
 
-        // What's left is host + path
-        let hostAndPathParts = Text.split(hostAndPath, #char('/'));
-        let hostAndPortText : Text = switch (hostAndPathParts.next()) {
-            case (?hostPart) hostPart;
-            case (null) hostAndPath;
-        };
+        // Now parse authority and path based on whether we have "//" after scheme
+        var authority : ?Authority = null;
+        var pathText = urlWithoutQuery;
 
-        // Validate no leading/trailing whitespace in host part
-        if (hostAndPortText != Text.trim(hostAndPortText, #text(" "))) {
-            return #err("Invalid URL: Host cannot have leading or trailing whitespace");
-        };
+        if (Text.startsWith(urlWithoutQuery, #text("//"))) {
+            // Authority present - schemes like http://, https://, ftp://
+            pathText := Text.trimStart(urlWithoutQuery, #text("//"));
 
-        let (host, port) = switch (Host.fromText(hostAndPortText)) {
-            case (#ok(result)) result;
-            case (#err(errMsg)) return #err("Invalid URL host: " # errMsg);
-        };
-
-        // The rest is the path
-        let path = List.empty<Text>();
-        for (part in hostAndPathParts) {
-            // Validate path segment for invalid characters
-            if (containsInvalidPathChars(part)) {
-                return #err("Invalid URL: Path contains invalid characters");
+            // Find where authority ends (first '/' or end of string)
+            let pathParts = Text.split(pathText, #char('/'));
+            let (authorityText, remainingPath) = switch (pathParts.next()) {
+                case (?firstPart) {
+                    switch (pathParts.next()) {
+                        case (?secondPart) {
+                            // Found a slash, so authority is firstPart
+                            var remaining = "/" # secondPart;
+                            for (part in pathParts) {
+                                remaining := remaining # "/" # part;
+                            };
+                            (firstPart, remaining);
+                        };
+                        case (null) {
+                            // No slash found, entire thing is authority
+                            (firstPart, "");
+                        };
+                    };
+                };
+                case (null) {
+                    ("", "");
+                };
             };
-            List.add(path, part);
+
+            if (not TextX.isEmptyOrWhitespace(authorityText)) {
+                authority := switch (parseAuthority(authorityText)) {
+                    case (#ok(auth)) ?auth;
+                    case (#err(errMsg)) return #err("Invalid URL authority: " # errMsg);
+                };
+            };
+
+            pathText := remainingPath;
+        } else {
+            // No authority - schemes like mailto:, data:, tel:, or relative URLs
+            // The entire urlWithoutQuery is the path
+        };
+
+        // Parse path
+        let path = if (pathText == "") { [] } else {
+            let pathSegments = List.empty<Text>();
+            let pathParts = Text.split(pathText, #char('/'));
+
+            // Handle leading slash
+            if (Text.startsWith(pathText, #char('/'))) {
+                let _ = pathParts.next(); // Skip empty first segment
+            };
+
+            for (segment in pathParts) {
+                if (containsInvalidPathChars(segment)) {
+                    return #err("Invalid URL: Path contains invalid characters");
+                };
+                List.add(pathSegments, segment);
+            };
+
+            List.toArray(pathSegments);
         };
 
         #ok({
             scheme = scheme;
-            host = host;
-            path = List.toArray(path);
+            authority = authority;
+            path = path;
             queryParams = queryParams;
-            port = port;
             fragment = fragment;
         });
     };
 
     public func toText(url : Url) : Text {
-        var result = url.scheme # "://" # Host.toText(url.host, url.port);
+        var result = "";
 
+        // Add scheme
+        switch (url.scheme) {
+            case (?scheme) result := scheme # "://";
+            case (null) {
+                // If no scheme but has authority, use //
+                switch (url.authority) {
+                    case (?_) result := "//";
+                    case (null) {};
+                };
+            };
+        };
+
+        // Add authority
+        switch (url.authority) {
+            case (?auth) result := result # authorityToText(auth);
+            case (null) {};
+        };
+
+        // Add path
         result := result # Path.toText(url.path);
 
         // Add query
@@ -139,7 +228,7 @@ module UrlKit {
                 "&",
                 Array.map(
                     url.queryParams,
-                    func((k, v) : (Text, Text)) : Text = encodeText(k) # "=" # encodeText(v) // Now encoding both key and value
+                    func((k, v) : (Text, Text)) : Text = encodeText(k) # "=" # encodeText(v),
                 ).vals(),
             );
             result := result # "?" # queryString;
@@ -170,11 +259,16 @@ module UrlKit {
         };
 
         {
-            scheme = TextX.toLower(url.scheme);
-            host = Host.normalize(url.host);
+            scheme = switch (url.scheme) {
+                case (?scheme) ?TextX.toLower(scheme);
+                case (null) null;
+            };
+            authority = switch (url.authority) {
+                case (?auth) ?normalizeAuthority(auth);
+                case (null) null;
+            };
             path = normalizedPath;
             queryParams = sortedQuery;
-            port = url.port; // Port is already a Nat, no need to normalize
             fragment = url.fragment; // Fragment stays as is
         };
     };
@@ -289,6 +383,101 @@ module UrlKit {
 
     // ===== PRIVATE HELPER FUNCTIONS =====
 
+    private func parseAuthority(authorityText : Text) : Result.Result<Authority, Text> {
+        // Validate no leading/trailing whitespace in authority
+        if (authorityText != Text.trim(authorityText, #text(" "))) {
+            return #err("Authority cannot have leading or trailing whitespace");
+        };
+
+        var hostAndPort = authorityText;
+        var user : ?{ username : Text; password : Text } = null;
+
+        // Check for user info (username:password@)
+        if (Text.contains(authorityText, #char('@'))) {
+            let userParts = Text.split(authorityText, #char('@'));
+            let ?userInfo = userParts.next() else return #err("Invalid authority: Missing user info before @");
+            hostAndPort := switch (userParts.next()) {
+                case (?hostPart) hostPart;
+                case (null) return #err("Invalid authority: Missing host after @");
+            };
+
+            if (userParts.next() != null) {
+                return #err("Invalid authority: Multiple @ characters found");
+            };
+
+            // Parse user info (username:password)
+            if (not TextX.isEmptyOrWhitespace(userInfo)) {
+                let credentialParts = Text.split(userInfo, #char(':'));
+                let ?username = credentialParts.next() else return #err("Invalid authority: Empty username");
+                let password = switch (credentialParts.next()) {
+                    case (?pass) pass;
+                    case (null) ""; // No password provided
+                };
+
+                if (credentialParts.next() != null) {
+                    return #err("Invalid authority: Multiple : characters in user info");
+                };
+
+                // Decode username and password
+                let decodedUsername = switch (decodeText(username)) {
+                    case (#ok(decoded)) decoded;
+                    case (#err(errMsg)) return #err("Invalid username encoding: " # errMsg);
+                };
+
+                let decodedPassword = switch (decodeText(password)) {
+                    case (#ok(decoded)) decoded;
+                    case (#err(errMsg)) return #err("Invalid password encoding: " # errMsg);
+                };
+
+                user := ?{
+                    username = decodedUsername;
+                    password = decodedPassword;
+                };
+            };
+        };
+
+        // Parse host and port
+        let (host, port) = switch (Host.fromText(hostAndPort)) {
+            case (#ok(result)) result;
+            case (#err(errMsg)) return #err(errMsg);
+        };
+
+        #ok({
+            user = user;
+            host = host;
+            port = port;
+        });
+    };
+
+    private func authorityToText(authority : Authority) : Text {
+        var result = "";
+
+        // Add user info if present
+        switch (authority.user) {
+            case (?userInfo) {
+                result := encodeText(userInfo.username);
+                if (userInfo.password != "") {
+                    result := result # ":" # encodeText(userInfo.password);
+                };
+                result := result # "@";
+            };
+            case (null) {};
+        };
+
+        // Add host and port
+        result := result # Host.toText(authority.host, authority.port);
+
+        result;
+    };
+
+    private func normalizeAuthority(authority : Authority) : Authority {
+        {
+            user = authority.user; // User info stays as is (already decoded)
+            host = Host.normalize(authority.host);
+            port = authority.port;
+        };
+    };
+
     private func validateScheme(scheme : Text) : Result.Result<(), Text> {
         if (scheme.size() == 0) return #err("Empty scheme");
 
@@ -351,9 +540,9 @@ module UrlKit {
             return #ok([]);
         };
         let queryParams = List.empty<(Text, Text)>();
-        for (param in Text.split(queryString, #char('&'))) {
+        label f for (param in Text.split(queryString, #char('&'))) {
             if (TextX.isEmptyOrWhitespace(param)) {
-                return #err("Invalid query parameter: Empty parameter found");
+                continue f; // Skip empty parameters
             };
 
             let parts = Text.split(param, #char('='));
