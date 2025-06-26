@@ -14,10 +14,29 @@ module {
         subdomains : [Text];
     };
 
+    /// Parses a domain string into a Domain structure using the default suffix list.
+    /// The domain is validated against known public suffixes to properly separate
+    /// the domain name from its suffix.
+    ///
+    /// ```motoko
+    /// let domain = Domain.fromText("www.example.com");
+    /// // domain is #ok({ name = "example"; suffix = "com"; subdomains = ["www"] })
+    ///
+    /// let githubDomain = Domain.fromText("user.github.io");
+    /// // githubDomain is #ok({ name = "user"; suffix = "github.io"; subdomains = [] })
+    /// ```
     public func fromText(domain : Text) : Result.Result<Domain, Text> {
         fromTextWithSuffixes(domain, DomainSuffixList.value);
     };
 
+    /// Parses a domain string into a Domain structure using a custom suffix list.
+    /// This allows using a different set of known suffixes than the default.
+    ///
+    /// ```motoko
+    /// let customSuffixes = [{ id = "test"; isTerminal = true; children = [] }];
+    /// let domain = Domain.fromTextWithSuffixes("example.test", customSuffixes);
+    /// // domain is #ok({ name = "example"; suffix = "test"; subdomains = [] })
+    /// ```
     public func fromTextWithSuffixes(domain : Text, suffixes : [DomainSuffixList.SuffixEntry]) : Result.Result<Domain, Text> {
         let parts = Text.split(domain, #text("."));
         let partsArray = Iter.toArray(parts);
@@ -99,11 +118,25 @@ module {
         };
     };
 
+    /// Converts a Domain structure back to its text representation.
+    ///
+    /// ```motoko
+    /// let domain = { name = "example"; suffix = "com"; subdomains = ["www", "blog"] };
+    /// let domainText = Domain.toText(domain);
+    /// // domainText is "www.blog.example.com"
+    /// ```
     public func toText(domain : Domain) : Text {
         let all = Array.concat(domain.subdomains, [domain.name, domain.suffix]);
         Text.join(".", all.vals());
     };
 
+    /// Normalizes a domain by converting all parts to lowercase.
+    ///
+    /// ```motoko
+    /// let domain = { name = "EXAMPLE"; suffix = "COM"; subdomains = ["WWW"] };
+    /// let normalized = Domain.normalize(domain);
+    /// // normalized is { name = "example"; suffix = "com"; subdomains = ["www"] }
+    /// ```
     public func normalize(domain : Domain) : Domain {
         {
             name = Text.toLower(domain.name);
@@ -112,6 +145,18 @@ module {
         };
     };
 
+    /// Validates a Domain structure according to RFC domain name rules.
+    /// Checks label lengths, character validity, and overall domain constraints.
+    ///
+    /// ```motoko
+    /// let validDomain = { name = "example"; suffix = "com"; subdomains = ["www"] };
+    /// let result = Domain.validate(validDomain);
+    /// // result is #ok(())
+    ///
+    /// let invalidDomain = { name = "-example"; suffix = "com"; subdomains = [] };
+    /// let result2 = Domain.validate(invalidDomain);
+    /// // result2 is #err("domain name cannot start or end with hyphen")
+    /// ```
     public func validate(domain : Domain) : Result.Result<(), Text> {
         // Helper function to validate a single label (subdomain part, name, or suffix part)
         func validateLabel(label_ : Text, labelType : Text) : Result.Result<(), Text> {

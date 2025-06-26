@@ -32,6 +32,16 @@ module UrlKit {
         password : Text;
     };
 
+    /// Parses a URL string into a structured Url object.
+    /// Handles various URL formats including authority-based URLs, relative URLs, and special schemes.
+    ///
+    /// ```motoko
+    /// let urlResult = UrlKit.fromText("https://example.com:8080/path?key=value#section");
+    /// // urlResult is #ok({ scheme = ?"https"; authority = ?{...}; path = ["path"]; queryParams = [("key", "value")]; fragment = ?"section" })
+    ///
+    /// let relativeResult = UrlKit.fromText("/api/users");
+    /// // relativeResult is #ok({ scheme = null; authority = null; path = ["api", "users"]; queryParams = []; fragment = null })
+    /// ```
     public func fromText(url : Text) : Result.Result<Url, Text> {
         if (TextX.isEmptyOrWhitespace(url)) {
             return #err("Invalid URL: Empty string");
@@ -198,6 +208,14 @@ module UrlKit {
         });
     };
 
+    /// Converts a Url object back to its string representation.
+    /// Properly encodes query parameters and fragments, and formats IPv6 addresses with brackets.
+    ///
+    /// ```motoko
+    /// let url = { scheme = ?"https"; authority = ?{...}; path = ["api", "users"]; queryParams = [("id", "123")]; fragment = ?"top" };
+    /// let urlText = UrlKit.toText(url);
+    /// // urlText is "https://example.com/api/users?id=123#top"
+    /// ```
     public func toText(url : Url) : Text {
         var result = "";
 
@@ -243,6 +261,14 @@ module UrlKit {
         result;
     };
 
+    /// Normalizes a URL by converting schemes and hosts to lowercase, sorting query parameters,
+    /// and normalizing path segments. This enables consistent URL comparison.
+    ///
+    /// ```motoko
+    /// let url = { scheme = ?"HTTPS"; authority = ?{...}; path = ["API", "", "Users"]; queryParams = [("z", "1"), ("a", "2")]; fragment = null };
+    /// let normalized = UrlKit.normalize(url);
+    /// // normalized has scheme = ?"https", path = ["api", "users"], queryParams = [("a", "2"), ("z", "1")]
+    /// ```
     public func normalize(url : Url) : Url {
         var normalizedPath = Path.normalize(url.path);
 
@@ -273,10 +299,25 @@ module UrlKit {
         };
     };
 
+    /// Adds a single query parameter to a URL.
+    ///
+    /// ```motoko
+    /// let url = { scheme = ?"https"; authority = ?{...}; path = []; queryParams = []; fragment = null };
+    /// let urlWithParam = UrlKit.addQueryParam(url, ("key", "value"));
+    /// // urlWithParam.queryParams is [("key", "value")]
+    /// ```
     public func addQueryParam(url : Url, param : (Text, Text)) : Url {
         addQueryParamMulti(url, [param]);
     };
 
+    /// Adds multiple query parameters to a URL.
+    ///
+    /// ```motoko
+    /// let url = { scheme = ?"https"; authority = ?{...}; path = []; queryParams = [("existing", "param")]; fragment = null };
+    /// let newParams = [("key1", "value1"), ("key2", "value2")];
+    /// let urlWithParams = UrlKit.addQueryParamMulti(url, newParams);
+    /// // urlWithParams.queryParams is [("existing", "param"), ("key1", "value1"), ("key2", "value2")]
+    /// ```
     public func addQueryParamMulti(url : Url, params : [(Text, Text)]) : Url {
         let newQuery = Array.concat(url.queryParams, params);
         {
@@ -285,10 +326,25 @@ module UrlKit {
         };
     };
 
+    /// Removes a single query parameter from a URL by key.
+    ///
+    /// ```motoko
+    /// let url = { scheme = ?"https"; authority = ?{...}; path = []; queryParams = [("key1", "value1"), ("key2", "value2")]; fragment = null };
+    /// let urlWithoutParam = UrlKit.removeQueryParam(url, "key1");
+    /// // urlWithoutParam.queryParams is [("key2", "value2")]
+    /// ```
     public func removeQueryParam(url : Url, key : Text) : Url {
         removeQueryParamMulti(url, [key]);
     };
 
+    /// Removes multiple query parameters from a URL by their keys.
+    ///
+    /// ```motoko
+    /// let url = { scheme = ?"https"; authority = ?{...}; path = []; queryParams = [("key1", "value1"), ("key2", "value2"), ("key3", "value3")]; fragment = null };
+    /// let keysToRemove = ["key1", "key3"];
+    /// let urlWithoutParams = UrlKit.removeQueryParamMulti(url, keysToRemove);
+    /// // urlWithoutParams.queryParams is [("key2", "value2")]
+    /// ```
     public func removeQueryParamMulti(url : Url, keys : [Text]) : Url {
         let filteredQuery = Array.filter(
             url.queryParams,
@@ -305,6 +361,16 @@ module UrlKit {
         };
     };
 
+    /// Retrieves the value of a query parameter by key. Returns the first matching value if multiple exist.
+    ///
+    /// ```motoko
+    /// let url = { scheme = ?"https"; authority = ?{...}; path = []; queryParams = [("key1", "value1"), ("key2", "value2")]; fragment = null };
+    /// let value = UrlKit.getQueryParam(url, "key1");
+    /// // value is ?"value1"
+    ///
+    /// let missing = UrlKit.getQueryParam(url, "nonexistent");
+    /// // missing is null
+    /// ```
     public func getQueryParam(url : Url, key : Text) : ?Text {
         switch (Array.find(url.queryParams, func((k, _) : (Text, Text)) : Bool = k == key)) {
             case (?(_, value)) ?value;
@@ -314,6 +380,15 @@ module UrlKit {
 
     // ===== COMPARISON & ANALYSIS =====
 
+    /// Compares two URLs for equality after normalization.
+    /// This enables case-insensitive comparison and handles query parameter ordering.
+    ///
+    /// ```motoko
+    /// let url1 = UrlKit.fromText("HTTPS://EXAMPLE.COM?b=2&a=1");
+    /// let url2 = UrlKit.fromText("https://example.com?a=1&b=2");
+    /// let isEqual = UrlKit.equal(url1, url2);
+    /// // isEqual is true (after normalization)
+    /// ```
     public func equal(url1 : Url, url2 : Url) : Bool {
         let norm1 = normalize(url1);
         let norm2 = normalize(url2);
@@ -322,6 +397,16 @@ module UrlKit {
 
     // ===== ENCODING/DECODING =====
 
+    /// Encodes text for safe use in URLs by percent-encoding unsafe characters.
+    /// Safe characters (A-Z, a-z, 0-9, _, ~, -, .) are left unencoded.
+    ///
+    /// ```motoko
+    /// let encoded = UrlKit.encodeText("hello world!");
+    /// // encoded is "hello%20world%21"
+    ///
+    /// let unicodeEncoded = UrlKit.encodeText("café");
+    /// // unicodeEncoded is "caf%c3%a9"
+    /// ```
     public func encodeText(value : Text) : Text {
         func isSafeChar(c : Char) : Bool {
             let nat32_char = Char.toNat32(c);
@@ -347,6 +432,19 @@ module UrlKit {
         result;
     };
 
+    /// Decodes percent-encoded text back to its original form.
+    /// Handles UTF-8 sequences and validates hex encoding.
+    ///
+    /// ```motoko
+    /// let decoded = UrlKit.decodeText("hello%20world%21");
+    /// // decoded is #ok("hello world!")
+    ///
+    /// let unicodeDecoded = UrlKit.decodeText("caf%c3%a9");
+    /// // unicodeDecoded is #ok("café")
+    ///
+    /// let invalid = UrlKit.decodeText("invalid%ZZ");
+    /// // invalid is #err("Invalid URL encoded hex value 'ZZ': ...")
+    /// ```
     public func decodeText(value : Text) : Result.Result<Text, Text> {
         var result = "";
         let charIter = PeekableIter.fromIter(value.chars());

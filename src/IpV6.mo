@@ -20,6 +20,19 @@ module {
         #standard; // 2001:db8:0:0:0:0:0:1
     };
 
+    /// Parses an IPv6 address string into an IpV6 tuple.
+    /// Supports standard notation, compressed notation (::), and IPv4-mapped addresses.
+    ///
+    /// ```motoko
+    /// let ipResult1 = IpV6.fromText("2001:db8::1");
+    /// // ipResult1 is #ok((0x2001, 0x0db8, 0, 0, 0, 0, 0, 1))
+    ///
+    /// let ipResult2 = IpV6.fromText("::1");
+    /// // ipResult2 is #ok((0, 0, 0, 0, 0, 0, 0, 1))
+    ///
+    /// let ipResult3 = IpV6.fromText("::ffff:192.168.1.1");
+    /// // ipResult3 is #ok((0, 0, 0, 0, 0, 0xffff, 0xc0a8, 0x0101))
+    /// ```
     public func fromText(text : Text) : Result.Result<IpV6, Text> {
         // Handle IPv4-mapped IPv6 addresses first
         let processedText = switch (handleEmbeddedIpV4(text)) {
@@ -55,6 +68,20 @@ module {
         #ok((groups[0], groups[1], groups[2], groups[3], groups[4], groups[5], groups[6], groups[7]));
     };
 
+    /// Converts an IpV6 tuple to its string representation in the specified format.
+    ///
+    /// ```motoko
+    /// let ip = (0x2001, 0x0db8, 0, 0, 0, 0, 0, 1);
+    ///
+    /// let fullFormat = IpV6.toText(ip, #full);
+    /// // fullFormat is "2001:0db8:0000:0000:0000:0000:0000:0001"
+    ///
+    /// let compressedFormat = IpV6.toText(ip, #compressed);
+    /// // compressedFormat is "2001:db8::1"
+    ///
+    /// let standardFormat = IpV6.toText(ip, #standard);
+    /// // standardFormat is "2001:db8:0:0:0:0:0:1"
+    /// ```
     public func toText(ip : IpV6, format : IpV6Format) : Text {
         let (a, b, c, d, e, f, g, h) = ip;
         let groups = [a, b, c, d, e, f, g, h];

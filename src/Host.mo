@@ -17,6 +17,19 @@ module {
         #ipV6 : IpV6.IpV6;
     };
 
+    /// Parses a host string (with optional port) into a Host and port tuple.
+    /// Supports IPv4, IPv6 (with brackets), domain names, and hostnames.
+    ///
+    /// ```motoko
+    /// let result1 = Host.fromText("example.com:8080");
+    /// // result1 is #ok((#domain({...}), ?8080))
+    ///
+    /// let result2 = Host.fromText("[2001:db8::1]:9000");
+    /// // result2 is #ok((#ipV6(...), ?9000))
+    ///
+    /// let result3 = Host.fromText("192.168.1.1");
+    /// // result3 is #ok((#ipV4((192, 168, 1, 1)), null))
+    /// ```
     public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat16), Text> {
         let trimmed = Text.trim(hostAndPort, #text(" "));
 
@@ -199,6 +212,18 @@ module {
         #ok();
     };
 
+    /// Converts a Host and optional port back to text representation.
+    /// IPv6 addresses are automatically wrapped in brackets when a port is specified.
+    ///
+    /// ```motoko
+    /// let host = #domain({ name = "example"; suffix = "com"; subdomains = ["www"] });
+    /// let text1 = Host.toText(host, ?8080);
+    /// // text1 is "www.example.com:8080"
+    ///
+    /// let ipv6Host = #ipV6((0x2001, 0x0db8, 0, 0, 0, 0, 0, 1));
+    /// let text2 = Host.toText(ipv6Host, ?9000);
+    /// // text2 is "[2001:db8::1]:9000"
+    /// ```
     public func toText(host : Host, port : ?Nat16) : Text {
         let hostText = toTextHostOnly(host);
         let hostTextPlus = switch (host) {
@@ -221,6 +246,18 @@ module {
         };
     };
 
+    /// Normalizes a Host by converting domain names and hostnames to lowercase.
+    /// IP addresses remain unchanged.
+    ///
+    /// ```motoko
+    /// let host = #domain({ name = "EXAMPLE"; suffix = "COM"; subdomains = ["WWW"] });
+    /// let normalized = Host.normalize(host);
+    /// // normalized is #domain({ name = "example"; suffix = "com"; subdomains = ["www"] })
+    ///
+    /// let hostname = #hostname("LOCALHOST");
+    /// let normalizedHostname = Host.normalize(hostname);
+    /// // normalizedHostname is #hostname("localhost")
+    /// ```
     public func normalize(host : Host) : Host {
         switch (host) {
             case (#domain(d)) #domain(Domain.normalize(d));
@@ -230,6 +267,14 @@ module {
         };
     };
 
+    /// Compares two hosts for equality after normalization.
+    ///
+    /// ```motoko
+    /// let host1 = #hostname("EXAMPLE.COM");
+    /// let host2 = #hostname("example.com");
+    /// let isEqual = Host.equal(host1, host2);
+    /// // isEqual is true
+    /// ```
     public func equal(host1 : Host, host2 : Host) : Bool {
         let norm1 = normalize(host1);
         let norm2 = normalize(host2);

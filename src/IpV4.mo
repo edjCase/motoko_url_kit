@@ -9,6 +9,16 @@ module {
 
     public type IpV4 = (Nat8, Nat8, Nat8, Nat8); // (192, 168, 1, 1)
 
+    /// Parses an IPv4 address string into an IpV4 tuple.
+    /// Validates that each octet is between 0-255 and rejects leading zeros.
+    ///
+    /// ```motoko
+    /// let ipResult = IpV4.fromText("192.168.1.1");
+    /// // ipResult is #ok((192, 168, 1, 1))
+    ///
+    /// let invalidResult = IpV4.fromText("192.168.1.256");
+    /// // invalidResult is #err("Invalid octet '256': Value exceeds 255")
+    /// ```
     public func fromText(text : Text) : Result.Result<IpV4, Text> {
         let parts = Text.split(text, #text("."));
         let partsArray = Iter.toArray(parts);
@@ -28,6 +38,13 @@ module {
         #ok((octets[0], octets[1], octets[2], octets[3]));
     };
 
+    /// Converts an IpV4 tuple back to its dotted decimal string representation.
+    ///
+    /// ```motoko
+    /// let ip = (192, 168, 1, 1);
+    /// let ipText = IpV4.toText(ip);
+    /// // ipText is "192.168.1.1"
+    /// ```
     public func toText(ip : IpV4) : Text {
         Nat8.toText(ip.0) # "." # Nat8.toText(ip.1) # "." # Nat8.toText(ip.2) # "." # Nat8.toText(ip.3);
     };
