@@ -6,6 +6,8 @@ import Iter "mo:new-base/Iter";
 import Array "mo:new-base/Array";
 import IterTools "mo:itertools/Iter";
 import TextX "mo:xtended-text/TextX";
+import Char "mo:new-base/Char";
+import Result "mo:new-base/Result";
 
 module {
     public type Path = [Segment];
@@ -29,10 +31,10 @@ module {
     /// let emptyPath = Path.fromText("/");
     /// // emptyPath is []
     /// ```
-    public func fromText(path : Text) : Path {
+    public func fromText(path : Text) : Result.Result<Path, Text> {
         // Handle edge cases first
         if (path == "" or path == "/") {
-            return [];
+            return #ok([]);
         };
 
         var correctedPath = path;
@@ -46,9 +48,22 @@ module {
         };
 
         // Split by the custom separator and filter out empty segments
-        correctedPath
+        let segments = correctedPath
         |> Text.split(_, #char('/'))
         |> Iter.toArray(_);
+
+        for (segment in segments.vals()) {
+            for (char in segment.chars()) {
+                let code = Char.toNat32(char);
+                // Reject spaces and control characters (0-31, 127)
+                if (code == 32 or (code >= 0 and code <= 31) or code == 127) {
+                    return #err("Invalid character '" # Char.toText(char) # "' in path");
+                };
+            };
+        };
+
+        #ok(segments);
+
     };
 
     /// Converts a path array to a text representation with "/" separators.

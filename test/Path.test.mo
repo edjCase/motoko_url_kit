@@ -155,7 +155,7 @@ test(
             },
             {
                 input = "/path/with spaces/in segments";
-                expected = ?["path", "with spaces", "in segments"];
+                expected = null;
             },
 
             // Encoded characters (should be preserved as-is since Path doesn't decode)
@@ -287,11 +287,11 @@ test(
             // Whitespace variations
             {
                 input = "/path/ spaced /segment";
-                expected = ?["path", " spaced ", "segment"]; // Leading/trailing spaces
+                expected = null;
             },
             {
                 input = "/tab\tseparated/segments";
-                expected = ?["tab\tseparated", "segments"]; // Tab characters
+                expected = null;
             },
 
             // Colon in paths (common in URLs)
@@ -355,8 +355,16 @@ test(
             },
         ];
 
-        for (testCase in testCases.vals()) {
-            let result = Path.fromText(testCase.input);
+        label f for (testCase in testCases.vals()) {
+            let result = switch (Path.fromText(testCase.input)) {
+                case (#ok(parsed)) parsed;
+                case (#err(errMsg)) {
+                    if (testCase.expected != null) {
+                        Debug.trap(formatError("Path.fromText error", testCase.input, "Expected success", debug_show (errMsg)));
+                    };
+                    continue f; // Valid
+                };
+            };
 
             switch (testCase.expected) {
                 case (?expectedPath) {
@@ -380,9 +388,6 @@ test(
     "Path.toText - converting paths to text",
     func() {
         let testCases : [PathToTextTestCase] = [
-            // DESIGN ISSUE: toText always adds leading "/" for non-empty paths
-            // This assumes all non-empty paths are absolute, which may not be correct
-
             // Basic cases (all treated as absolute by toText)
             {
                 input = ["path", "to", "resource"];
@@ -853,11 +858,18 @@ test(
             ("relative/path/to/resource", "/relative/path/to/resource"), // Becomes absolute!
             ("/single", "/single"), // Perfect roundtrip
             ("", ""), // Empty stays empty
-            ("/", ""), // ROOT BECOMES EMPTY! (Major issue)
+            ("/", ""), // ROOT BECOMES EMPTY
         ];
 
         for ((input, expectedOutput) in testCases.vals()) {
-            let parsed = Path.fromText(input);
+            let parsed = switch (Path.fromText(input)) {
+                case (#ok(segments)) segments;
+                case (#err(error)) {
+                    Debug.trap(
+                        formatError("Path.fromText error", input, "Expected success", debug_show (error))
+                    );
+                };
+            };
             let reconstructed = Path.toText(parsed);
 
             if (reconstructed != expectedOutput) {

@@ -44,7 +44,13 @@ module UrlKit {
     /// ```
     public func fromText(url : Text) : Result.Result<Url, Text> {
         if (TextX.isEmptyOrWhitespace(url)) {
-            return #err("Invalid URL: Empty string");
+            return #ok({
+                scheme = null;
+                authority = null;
+                path = [];
+                queryParams = [];
+                fragment = null;
+            });
         };
 
         var remainingUrl = url;
@@ -180,23 +186,9 @@ module UrlKit {
         };
 
         // Parse path
-        let path = if (pathText == "") { [] } else {
-            let pathSegments = List.empty<Text>();
-            let pathParts = Text.split(pathText, #char('/'));
-
-            // Handle leading slash
-            if (Text.startsWith(pathText, #char('/'))) {
-                let _ = pathParts.next(); // Skip empty first segment
-            };
-
-            for (segment in pathParts) {
-                if (containsInvalidPathChars(segment)) {
-                    return #err("Invalid URL: Path contains invalid characters");
-                };
-                List.add(pathSegments, segment);
-            };
-
-            List.toArray(pathSegments);
+        let path = switch (Path.fromText(pathText)) {
+            case (#ok(parsedPath)) parsedPath;
+            case (#err(errMsg)) return #err("Invalid URL path: " # errMsg);
         };
 
         #ok({
@@ -620,17 +612,6 @@ module UrlKit {
         code == 43 or // +
         code == 45 or // -
         code == 46; // .
-    };
-
-    private func containsInvalidPathChars(segment : Text) : Bool {
-        for (char in segment.chars()) {
-            let code = Char.toNat32(char);
-            // Reject spaces and control characters (0-31, 127)
-            if (code == 32 or (code >= 0 and code <= 31) or code == 127) {
-                return true;
-            };
-        };
-        false;
     };
 
     private func parseQueryString(queryString : Text) : Result.Result<[(Text, Text)], Text> {

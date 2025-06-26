@@ -268,6 +268,28 @@ test(
         };
       },
 
+      {
+        input = "/";
+        expected = {
+          scheme = null;
+          authority = null;
+          path = [];
+          queryParams = [];
+          fragment = null;
+        };
+      },
+
+      {
+        input = "//";
+        expected = {
+          scheme = null;
+          authority = null;
+          path = [""];
+          queryParams = [];
+          fragment = null;
+        };
+      },
+
       // Path variations
       {
         input = "https://example.com/";
@@ -921,6 +943,26 @@ test(
           fragment = null;
         };
       },
+      {
+        input = ""; // Empty input
+        expected = {
+          scheme = null;
+          authority = null;
+          path = [];
+          queryParams = [];
+          fragment = null;
+        };
+      },
+      {
+        input = "     "; // Whitespace input
+        expected = {
+          scheme = null;
+          authority = null;
+          path = [];
+          queryParams = [];
+          fragment = null;
+        };
+      },
     ];
 
     for (testCase in testCases.vals()) {
@@ -947,9 +989,6 @@ test(
   "fromText - URL parsing failures",
   func() {
     let testCases : [ParseFailTestCase] = [
-      // Basic malformed cases
-      { input = "" },
-      { input = "   " }, // Only whitespace
 
       // Authority schemes missing authority
       { input = "://example.com" },
@@ -974,15 +1013,6 @@ test(
       { input = "https://.com" }, // Missing domain name
       { input = "https://example.com-" }, // TLD ending with hyphen
       { input = "https://-example-.com" }, // Multiple hyphen issues
-
-      // IPv4 address failures
-      // { input = "https://256.1.1.1" }, // Octet too large
-      // { input = "https://1.256.1.1" }, // Octet too large
-      // { input = "https://1.1.256.1" }, // Octet too large
-      // { input = "https://1.1.1.256" }, // Octet too large
-      // { input = "https://999.999.999.999" }, // All octets too large
-      // { input = "https://1.1.1" }, // Too few octets
-      // { input = "https://1.1.1.1.1" }, // Too many octets
 
       // IPv6 failures
       { input = "https://[2001:db8::1::2]" }, // Multiple ::
