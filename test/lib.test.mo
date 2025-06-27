@@ -2,7 +2,6 @@ import UrlKit "../src";
 import Host "../src/Host";
 import Text "mo:base/Text";
 import Debug "mo:base/Debug";
-import Result "mo:base/Result";
 import Array "mo:base/Array";
 import { test } "mo:test";
 import Bool "mo:base/Bool";
@@ -78,11 +77,11 @@ test(
   func() {
     let testCases : [{
       input : Text;
-      expected : ?(Host.Host, ?Nat16);
+      expected : (Host.Host, ?Nat16);
     }] = [
       {
         input = "example.com";
-        expected = ?(
+        expected = (
           #domain({
             name = "example";
             suffix = "com";
@@ -93,7 +92,7 @@ test(
       },
       {
         input = "james.github.io"; // github.io is a suffix
-        expected = ?(
+        expected = (
           #domain({
             name = "james";
             suffix = "github.io";
@@ -104,7 +103,7 @@ test(
       },
       {
         input = "jim.git.io";
-        expected = ?(
+        expected = (
           #domain({
             name = "git";
             suffix = "io";
@@ -115,7 +114,7 @@ test(
       },
       {
         input = "jim.is.the.best.name.git.io";
-        expected = ?(
+        expected = (
           #domain({
             name = "git";
             suffix = "io";
@@ -126,7 +125,7 @@ test(
       },
       {
         input = "example.com:8080";
-        expected = ?(
+        expected = (
           #domain({
             name = "example";
             suffix = "com";
@@ -137,56 +136,56 @@ test(
       },
       {
         input = "localhost";
-        expected = ?(
+        expected = (
           #hostname("localhost"),
           null,
         );
       },
       {
         input = "localhost:3000";
-        expected = ?(
+        expected = (
           #hostname("localhost"),
           ?3000,
         );
       },
       {
         input = "192.168.1.1";
-        expected = ?(
+        expected = (
           #ipV4((192, 168, 1, 1)),
           null,
         );
       },
       {
         input = "192.168.1.1:8080";
-        expected = ?(
+        expected = (
           #ipV4((192, 168, 1, 1)),
           ?8080,
         );
       },
       {
         input = "[2001:db8::1]";
-        expected = ?(
+        expected = (
           #ipV6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001)),
           null,
         );
       },
       {
         input = "[2001:db8::1]:8080";
-        expected = ?(
+        expected = (
           #ipV6((0x2001, 0x0db8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001)),
           ?8080,
         );
       },
       {
         input = "[::1]";
-        expected = ?(
+        expected = (
           #ipV6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001)),
           null,
         );
       },
       {
         input = "[::1]:3000";
-        expected = ?(
+        expected = (
           #ipV6((0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001)),
           ?3000,
         );
