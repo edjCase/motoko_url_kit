@@ -4,7 +4,6 @@
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Array "mo:core/Array";
-import IterX "mo:xtended-iter/IterX";
 import TextX "mo:xtended-text/TextX";
 import Char "mo:core/Char";
 import Result "mo:core/Result";
