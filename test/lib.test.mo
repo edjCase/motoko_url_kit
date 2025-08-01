@@ -1,10 +1,11 @@
 import UrlKit "../src";
 import Host "../src/Host";
-import Text "mo:base/Text";
-import Debug "mo:base/Debug";
-import Array "mo:base/Array";
+import Text "mo:core/Text";
+import Debug "mo:core/Debug";
+import Array "mo:core/Array";
 import { test } "mo:test";
-import Bool "mo:base/Bool";
+import Bool "mo:core/Bool";
+import Runtime "mo:core/Runtime";
 
 // ===== HELPER FUNCTIONS =====
 
@@ -196,7 +197,7 @@ test(
       switch (Host.fromText(testCase.input)) {
         case (#ok(hostOrNull)) {
           if (hostOrNull != testCase.expected) {
-            Debug.trap(
+            Runtime.trap(
               "Test failed for input: " # testCase.input # "\n" #
               "Expected: " # debug_show (testCase.expected) # "\n" #
               "Actual:   " # debug_show (hostOrNull)
@@ -204,7 +205,7 @@ test(
           };
         };
         case (#err(msg)) {
-          Debug.trap("Failed to parse host:port " # testCase.input # ": " # msg);
+          Runtime.trap("Failed to parse host:port " # testCase.input # ": " # msg);
         };
       };
     };
@@ -968,7 +969,7 @@ test(
       switch (UrlKit.fromText(testCase.input)) {
         case (#ok(actualUrl)) {
           if (not UrlKit.equal(actualUrl, testCase.expected)) {
-            Debug.trap(
+            Runtime.trap(
               "Test failed for input: " # testCase.input # "\n" #
               "Expected: " # debug_show (testCase.expected) # "\n" #
               "Actual:   " # debug_show (actualUrl)
@@ -976,7 +977,7 @@ test(
           };
         };
         case (#err(msg)) {
-          Debug.trap(formatError("fromText success", testCase.input, "valid URL", "parse error: " # msg));
+          Runtime.trap(formatError("fromText success", testCase.input, "valid URL", "parse error: " # msg));
         };
       };
     };
@@ -1046,7 +1047,7 @@ test(
     for (testCase in testCases.vals()) {
       switch (UrlKit.fromText(testCase.input)) {
         case (#ok(actual)) {
-          Debug.trap(
+          Runtime.trap(
             "Test failed\n" #
             "  Input: " # testCase.input # "\n" #
             "  Expected Error\n" #
@@ -1105,12 +1106,12 @@ test(
           switch (UrlKit.fromText(reconstructed)) {
             case (#ok(_)) {}; // Success
             case (#err(msg)) {
-              Debug.trap(formatError("toText roundtrip", testCase.input, "parseable URL", "unparseable: " # msg));
+              Runtime.trap(formatError("toText roundtrip", testCase.input, "parseable URL", "unparseable: " # msg));
             };
           };
         };
         case (#err(msg)) {
-          Debug.trap(formatError("toText roundtrip setup", testCase.input, "valid URL", "parse error: " # msg));
+          Runtime.trap(formatError("toText roundtrip setup", testCase.input, "valid URL", "parse error: " # msg));
         };
       };
     };
@@ -1172,20 +1173,20 @@ test(
           switch (testCase.expectedValue, result) {
             case (?expected, ?actual) {
               if (expected != actual) {
-                Debug.trap(formatError("getQueryParam", testCase.url # " key=" # testCase.key, expected, actual));
+                Runtime.trap(formatError("getQueryParam", testCase.url # " key=" # testCase.key, expected, actual));
               };
             };
             case (null, null) {}; // Both null, correct
             case (?_, null) {
-              Debug.trap(formatErrorOptional("getQueryParam", testCase.url # " key=" # testCase.key, true, result));
+              Runtime.trap(formatErrorOptional("getQueryParam", testCase.url # " key=" # testCase.key, true, result));
             };
             case (null, ?_) {
-              Debug.trap(formatErrorOptional("getQueryParam", testCase.url # " key=" # testCase.key, false, result));
+              Runtime.trap(formatErrorOptional("getQueryParam", testCase.url # " key=" # testCase.key, false, result));
             };
           };
         };
         case (#err(msg)) {
-          Debug.trap(formatError("getQueryParam setup", testCase.url, "valid URL", "parse error: " # msg));
+          Runtime.trap(formatError("getQueryParam setup", testCase.url, "valid URL", "parse error: " # msg));
         };
       };
     };
@@ -1242,19 +1243,19 @@ test(
           // Check should contain
           for (shouldContain in testCase.shouldContain.vals()) {
             if (not Text.contains(result, #text(shouldContain))) {
-              Debug.trap(formatError(testCase.operation, testCase.url, "contains " # shouldContain, result));
+              Runtime.trap(formatError(testCase.operation, testCase.url, "contains " # shouldContain, result));
             };
           };
 
           // Check should not contain
           for (shouldNotContain in testCase.shouldNotContain.vals()) {
             if (Text.contains(result, #text(shouldNotContain))) {
-              Debug.trap(formatError(testCase.operation, testCase.url, "does not contain " # shouldNotContain, result));
+              Runtime.trap(formatError(testCase.operation, testCase.url, "does not contain " # shouldNotContain, result));
             };
           };
         };
         case (#err(msg)) {
-          Debug.trap(formatError(testCase.operation # " setup", testCase.url, "valid URL", "parse error: " # msg));
+          Runtime.trap(formatError(testCase.operation # " setup", testCase.url, "valid URL", "parse error: " # msg));
         };
       };
     };
@@ -1320,19 +1321,19 @@ test(
           // Check should contain
           for (shouldContain in testCase.shouldContain.vals()) {
             if (not Text.contains(result, #text(shouldContain))) {
-              Debug.trap(formatError(testCase.operation, testCase.url, "contains " # shouldContain, result));
+              Runtime.trap(formatError(testCase.operation, testCase.url, "contains " # shouldContain, result));
             };
           };
 
           // Check should not contain
           for (shouldNotContain in testCase.shouldNotContain.vals()) {
             if (Text.contains(result, #text(shouldNotContain))) {
-              Debug.trap(formatError(testCase.operation, testCase.url, "does not contain " # shouldNotContain, result));
+              Runtime.trap(formatError(testCase.operation, testCase.url, "does not contain " # shouldNotContain, result));
             };
           };
         };
         case (#err(msg)) {
-          Debug.trap(formatError(testCase.operation # " setup", testCase.url, "valid URL", "parse error: " # msg));
+          Runtime.trap(formatError(testCase.operation # " setup", testCase.url, "valid URL", "parse error: " # msg));
         };
       };
     };
@@ -1412,16 +1413,16 @@ test(
             case (#ok(url2)) {
               let result = UrlKit.equal(url1, url2);
               if (result != testCase.shouldBeEqual) {
-                Debug.trap(formatErrorBool("equal", testCase.url1 # " vs " # testCase.url2, testCase.shouldBeEqual, result));
+                Runtime.trap(formatErrorBool("equal", testCase.url1 # " vs " # testCase.url2, testCase.shouldBeEqual, result));
               };
             };
             case (#err(msg)) {
-              Debug.trap(formatError("equal setup url2", testCase.url2, "valid URL", "parse error: " # msg));
+              Runtime.trap(formatError("equal setup url2", testCase.url2, "valid URL", "parse error: " # msg));
             };
           };
         };
         case (#err(msg)) {
-          Debug.trap(formatError("equal setup url1", testCase.url1, "valid URL", "parse error: " # msg));
+          Runtime.trap(formatError("equal setup url1", testCase.url1, "valid URL", "parse error: " # msg));
         };
       };
     };
@@ -1452,18 +1453,18 @@ test(
           switch (testCase.expected) {
             case (#startsWith(startsWith)) {
               if (not Text.startsWith(result, #text(startsWith))) {
-                Debug.trap(formatError("normalize", testCase.input, "starts with " # startsWith, result));
+                Runtime.trap(formatError("normalize", testCase.input, "starts with " # startsWith, result));
               };
             };
             case (#contains(substring)) {
               if (not Text.contains(result, #text(substring))) {
-                Debug.trap(formatError("normalize", testCase.input, "contains " # substring, result));
+                Runtime.trap(formatError("normalize", testCase.input, "contains " # substring, result));
               };
             };
           };
         };
         case (#err(msg)) {
-          Debug.trap(formatError("normalize setup", testCase.input, "valid URL", "parse error: " # msg));
+          Runtime.trap(formatError("normalize setup", testCase.input, "valid URL", "parse error: " # msg));
         };
       };
     };
@@ -1502,28 +1503,28 @@ test(
               switch (authority.user, testCase.expectedUser) {
                 case (?actualUser, ?expectedUser) {
                   if (actualUser.username != expectedUser.username or actualUser.password != expectedUser.password) {
-                    Debug.trap("User info parsing failed for: " # testCase.input);
+                    Runtime.trap("User info parsing failed for: " # testCase.input);
                   };
                 };
                 case (null, null) {}; // Both null, ok
                 case _ {
-                  Debug.trap("User info presence mismatch for: " # testCase.input);
+                  Runtime.trap("User info presence mismatch for: " # testCase.input);
                 };
               };
             };
             case (null) {
-              Debug.trap("Expected authority but got null for: " # testCase.input);
+              Runtime.trap("Expected authority but got null for: " # testCase.input);
             };
           };
 
           // Check roundtrip encoding
           let output = UrlKit.toText(url);
           if (not Text.contains(output, #text(testCase.shouldContainInOutput))) {
-            Debug.trap("User info encoding failed for: " # testCase.input # " - output: " # output);
+            Runtime.trap("User info encoding failed for: " # testCase.input # " - output: " # output);
           };
         };
         case (#err(msg)) {
-          Debug.trap("Failed to parse user info URL: " # testCase.input # " - " # msg);
+          Runtime.trap("Failed to parse user info URL: " # testCase.input # " - " # msg);
         };
       };
     };
@@ -1567,19 +1568,19 @@ test(
               switch (authority.host) {
                 case (#ipV6(_)) {}; // Correct
                 case _ {
-                  Debug.trap("Expected IPv6 host type for: " # testCase.input);
+                  Runtime.trap("Expected IPv6 host type for: " # testCase.input);
                 };
               };
             };
             case (null) {
-              Debug.trap("Expected authority for IPv6 URL: " # testCase.input);
+              Runtime.trap("Expected authority for IPv6 URL: " # testCase.input);
             };
           };
 
           // Verify roundtrip
           let output = UrlKit.toText(UrlKit.normalize(url));
           if (not Text.contains(output, #text(testCase.shouldContainInOutput))) {
-            Debug.trap(
+            Runtime.trap(
               "IPv6 formatting failed for " # testCase.input #
               ": expected to contain '" # testCase.shouldContainInOutput #
               "' but got: " # output
@@ -1587,7 +1588,7 @@ test(
           };
         };
         case (#err(msg)) {
-          Debug.trap("Failed to parse valid IPv6 URL " # testCase.input # ": " # msg);
+          Runtime.trap("Failed to parse valid IPv6 URL " # testCase.input # ": " # msg);
         };
       };
     };
@@ -1624,23 +1625,23 @@ test(
           switch (url.fragment, testCase.expectedFragment) {
             case (?actual, ?expected) {
               if (actual != expected) {
-                Debug.trap("Fragment decoding failed: expected '" # expected # "' but got '" # actual # "'");
+                Runtime.trap("Fragment decoding failed: expected '" # expected # "' but got '" # actual # "'");
               };
             };
             case (null, null) {}; // Both null, ok
             case _ {
-              Debug.trap("Fragment presence mismatch");
+              Runtime.trap("Fragment presence mismatch");
             };
           };
 
           // Check roundtrip encoding
           let reconstructed = UrlKit.toText(url);
           if (reconstructed != testCase.roundtripExpected) {
-            Debug.trap("Fragment encoding failed: expected '" # testCase.roundtripExpected # "' but got '" # reconstructed # "'");
+            Runtime.trap("Fragment encoding failed: expected '" # testCase.roundtripExpected # "' but got '" # reconstructed # "'");
           };
         };
         case (#err(msg)) {
-          Debug.trap("Failed to parse URL with fragment: " # msg);
+          Runtime.trap("Failed to parse URL with fragment: " # msg);
         };
       };
     };
@@ -1670,14 +1671,14 @@ test(
         case (#ok(url)) {
           let normalizedUrl = UrlKit.normalize(url);
           if (normalizedUrl.path != testCase.expectedPath) {
-            Debug.trap(
+            Runtime.trap(
               "Path parsing failed for '" # testCase.input # "': expected " #
               debug_show (testCase.expectedPath) # " but got " # debug_show (normalizedUrl.path)
             );
           };
         };
         case (#err(msg)) {
-          Debug.trap("Failed to parse URL with multiple slashes: " # msg);
+          Runtime.trap("Failed to parse URL with multiple slashes: " # msg);
         };
       };
     };
@@ -1708,7 +1709,7 @@ test(
 
           for (expected in testCase.expectedInOutput.vals()) {
             if (not Text.contains(result, #text(expected))) {
-              Debug.trap(
+              Runtime.trap(
                 "Query key encoding failed: expected '" # expected #
                 "' in result but got: " # result
               );
@@ -1716,7 +1717,7 @@ test(
           };
         };
         case (#err(msg)) {
-          Debug.trap("Failed to parse base URL: " # msg);
+          Runtime.trap("Failed to parse base URL: " # msg);
         };
       };
     };
