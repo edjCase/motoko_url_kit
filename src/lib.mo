@@ -1,15 +1,15 @@
-import Text "mo:core/Text";
-import Array "mo:core/Array";
-import Char "mo:core/Char";
-import Result "mo:core/Result";
-import List "mo:core/List";
-import Order "mo:core/Order";
-import Blob "mo:core/Blob";
-import TextX "mo:xtended-text/TextX";
+import Text "mo:core@1/Text";
+import Array "mo:core@1/Array";
+import Char "mo:core@1/Char";
+import Result "mo:core@1/Result";
+import List "mo:core@1/List";
+import Order "mo:core@1/Order";
+import Blob "mo:core@1/Blob";
+import TextX "mo:xtended-text@2/TextX";
 import Path "./Path";
 import Host "./Host";
-import BaseX "mo:base-x-encoder";
-import PeekableIter "mo:xtended-iter/PeekableIter";
+import BaseX "mo:base-x-encoder@2";
+import PeekableIter "mo:xtended-iter@1/PeekableIter";
 
 module UrlKit {
 

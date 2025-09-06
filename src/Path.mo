@@ -1,12 +1,12 @@
 // Empty path segments fix for Path.mo
 // Replace the existing parse function with this updated version
 
-import Text "mo:core/Text";
-import Iter "mo:core/Iter";
-import Array "mo:core/Array";
-import TextX "mo:xtended-text/TextX";
-import Char "mo:core/Char";
-import Result "mo:core/Result";
+import Text "mo:core@1/Text";
+import Iter "mo:core@1/Iter";
+import Array "mo:core@1/Array";
+import TextX "mo:xtended-text@2/TextX";
+import Char "mo:core@1/Char";
+import Result "mo:core@1/Result";
 
 module {
   public type Path = [Segment];

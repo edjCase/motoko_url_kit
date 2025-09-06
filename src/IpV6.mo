@@ -1,13 +1,13 @@
-import Result "mo:core/Result";
-import Text "mo:core/Text";
-import Iter "mo:core/Iter";
-import VarArray "mo:core/VarArray";
-import Array "mo:core/Array";
-import Nat16 "mo:core/Nat16";
-import Char "mo:core/Char";
-import Nat8 "mo:core/Nat8";
-import BaseX "mo:base-x-encoder";
-import NatX "mo:xtended-numbers/NatX";
+import Result "mo:core@1/Result";
+import Text "mo:core@1/Text";
+import Iter "mo:core@1/Iter";
+import VarArray "mo:core@1/VarArray";
+import Array "mo:core@1/Array";
+import Nat16 "mo:core@1/Nat16";
+import Char "mo:core@1/Char";
+import Nat8 "mo:core@1/Nat8";
+import BaseX "mo:base-x-encoder@2";
+import NatX "mo:xtended-numbers@2/NatX";
 import IpV4 "IpV4";
 
 module {

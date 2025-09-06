@@ -1,8 +1,8 @@
 import Path "../src/Path";
-import Text "mo:core/Text";
-import Debug "mo:core/Debug";
+import Text "mo:core@1/Text";
+import Debug "mo:core@1/Debug";
 import { test } "mo:test";
-import Runtime "mo:core/Runtime";
+import Runtime "mo:core@1/Runtime";
 
 // ===== HELPER FUNCTIONS =====
 

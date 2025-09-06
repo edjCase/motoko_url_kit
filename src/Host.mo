@@ -1,10 +1,10 @@
-import Result "mo:core/Result";
-import Text "mo:core/Text";
-import Iter "mo:core/Iter";
-import Array "mo:core/Array";
-import Nat "mo:core/Nat";
-import TextX "mo:xtended-text/TextX";
-import Nat16 "mo:core/Nat16";
+import Result "mo:core@1/Result";
+import Text "mo:core@1/Text";
+import Iter "mo:core@1/Iter";
+import Array "mo:core@1/Array";
+import Nat "mo:core@1/Nat";
+import TextX "mo:xtended-text@2/TextX";
+import Nat16 "mo:core@1/Nat16";
 import Domain "./Domain";
 import IpV4 "./IpV4";
 import IpV6 "./IpV6";

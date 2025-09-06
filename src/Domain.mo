@@ -1,10 +1,10 @@
-import Result "mo:core/Result";
-import Array "mo:core/Array";
-import Text "mo:core/Text";
-import Iter "mo:core/Iter";
-import Nat "mo:core/Nat";
-import Char "mo:core/Char";
-import TextX "mo:xtended-text/TextX";
+import Result "mo:core@1/Result";
+import Array "mo:core@1/Array";
+import Text "mo:core@1/Text";
+import Iter "mo:core@1/Iter";
+import Nat "mo:core@1/Nat";
+import Char "mo:core@1/Char";
+import TextX "mo:xtended-text@2/TextX";
 import DomainSuffixList "./data/DomainSuffixList";
 
 module {

@@ -1,10 +1,10 @@
-import Result "mo:core/Result";
-import Text "mo:core/Text";
-import Iter "mo:core/Iter";
-import VarArray "mo:core/VarArray";
-import Nat32 "mo:core/Nat32";
-import Nat8 "mo:core/Nat8";
-import Char "mo:core/Char";
+import Result "mo:core@1/Result";
+import Text "mo:core@1/Text";
+import Iter "mo:core@1/Iter";
+import VarArray "mo:core@1/VarArray";
+import Nat32 "mo:core@1/Nat32";
+import Nat8 "mo:core@1/Nat8";
+import Char "mo:core@1/Char";
 module {
 
   public type IpV4 = (Nat8, Nat8, Nat8, Nat8); // (192, 168, 1, 1)

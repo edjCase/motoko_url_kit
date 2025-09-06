@@ -1,11 +1,11 @@
 import UrlKit "../src";
 import Host "../src/Host";
-import Text "mo:core/Text";
-import Debug "mo:core/Debug";
-import Array "mo:core/Array";
+import Text "mo:core@1/Text";
+import Debug "mo:core@1/Debug";
+import Array "mo:core@1/Array";
 import { test } "mo:test";
-import Bool "mo:core/Bool";
-import Runtime "mo:core/Runtime";
+import Bool "mo:core@1/Bool";
+import Runtime "mo:core@1/Runtime";
 
 // ===== HELPER FUNCTIONS =====
 
