@@ -11,16 +11,16 @@ URL Kit is a robust library designed to handle all aspects of URL processing in 
 
 Key features:
 
-- 🔍 **Complete URL Parsing**: Parse any URL into structured components (scheme, authority, path, query, fragment)
-- 🌐 **Multi-Host Support**: Handle domains, hostnames, IPv4, and IPv6 addresses with proper validation
-- 🏷️ **Domain Validation**: Built-in public suffix list validation for accurate domain parsing
-- 🔗 **URL Manipulation**: Add, remove, and modify query parameters with ease
-- 🔄 **Encoding/Decoding**: Proper URL encoding and decoding with UTF-8 support
-- ⚖️ **Normalization**: Normalize URLs for accurate comparison and deduplication
-- 🛡️ **Validation**: Comprehensive validation with detailed error messages
-- 🎯 **Type Safety**: Strongly typed URL components for compile-time safety
-- 📊 **IPv6 Support**: Full IPv6 address parsing with compression and various formats
-- 🔧 **Path Handling**: Flexible path parsing with custom separators and normalization
+-   🔍 **Complete URL Parsing**: Parse any URL into structured components (scheme, authority, path, query, fragment)
+-   🌐 **Multi-Host Support**: Handle domains, hostnames, IPv4, and IPv6 addresses with proper validation
+-   🏷️ **Domain Validation**: Built-in public suffix list validation for accurate domain parsing
+-   🔗 **URL Manipulation**: Add, remove, and modify query parameters with ease
+-   🔄 **Encoding/Decoding**: Proper URL encoding and decoding with UTF-8 support
+-   ⚖️ **Normalization**: Normalize URLs for accurate comparison and deduplication
+-   🛡️ **Validation**: Comprehensive validation with detailed error messages
+-   🎯 **Type Safety**: Strongly typed URL components for compile-time safety
+-   📊 **IPv6 Support**: Full IPv6 address parsing with compression and various formats
+-   🔧 **Path Handling**: Flexible path parsing with custom separators and normalization
 
 ## Package
 
@@ -38,9 +38,17 @@ Here's a simple example to get started with URL parsing:
 
 ```motoko
 import UrlKit "mo:url-kit";
+import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
+
+// Create a domain parser
+// Either a comprehesive parser from Public Suffix list https://publicsuffix.org/list/public_suffix_list.dat (requires more memory/initial loading/WASM size)
+let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+
+// OR a simple and smaller domains that you specify
+// let domainParser = UrlKit.SimpleDomainParser(["my-domain1.com", "my-domain2.com"])
 
 // Parse a URL
-let urlResult = UrlKit.fromText("https://api.example.com:8080/users?page=1&limit=10#results");
+let urlResult = UrlKit.fromText("https://api.example.com:8080/users?page=1&limit=10#results", domainParser);
 
 let url = switch (urlResult) {
     case (#ok(url)) url;
@@ -62,7 +70,7 @@ let url = switch (urlResult) {
         port = ?8080;
      };
      path = ["users"];
-     queryParams = [("page", "1"), ("limit", "10)];
+     queryParams = [("page", "1"), ("limit", "10")];
      fragment = ?"results"
 // }
 
@@ -84,6 +92,10 @@ Here's a more detailed example showing various URL manipulation capabilities:
 import UrlKit "mo:url-kit";
 import Host "mo:url-kit/Host";
 import Domain "mo:url-kit/Domain";
+import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
+
+// Create domain parser
+let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
 
 // Parse different types of URLs
 let examples = [
@@ -95,7 +107,7 @@ let examples = [
 ];
 
 for (urlText in examples.vals()) {
-    switch (UrlKit.fromText(urlText)) {
+    switch (UrlKit.fromText(urlText, domainParser)) {
         case (#ok(url)) {
             // Analyze the URL structure
             switch (url.authority) {
@@ -176,11 +188,23 @@ public type Authority = {
 };
 ```
 
+### Domain Parser
+
+```motoko
+import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
+
+// Create a comprehensive domain parser (recommended)
+let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+
+// Or create a simple domain parser with custom suffixes
+let simpleDomainParser = UrlKit.SimpleDomainParser(["com", "org", "net"]);
+```
+
 ### Parsing and Conversion
 
 ```motoko
-// Parse URL from text
-UrlKit.fromText(url : Text) : Result.Result<Url, Text>
+// Parse URL from text (requires domain parser)
+UrlKit.fromText(url : Text, domainParser : Domain.DomainParser) : Result.Result<Url, Text>
 
 // Convert URL back to text
 UrlKit.toText(url : Url) : Text
@@ -230,8 +254,8 @@ URL Kit supports various host types with proper validation:
 ```motoko
 import Domain "mo:url-kit/Domain";
 
-// Parse domain with public suffix validation
-let domainResult = Domain.fromText("blog.github.io");
+// Parse domain with specified domains
+let domainResult = Domain.fromText("blog.github.io", ["github.io"]);
 // Result: { name = "blog"; suffix = "github.io"; subdomains = [] }
 
 // Validate domain structure
@@ -271,6 +295,24 @@ let standard = IpV6.toText(ip, #standard); // "2001:db8:0:0:0:0:0:1"
 let compressed = IpV6.toText(ip, #compressed); // "2001:db8::1"
 ```
 
+### Host Parsing and Formatting
+
+```motoko
+import Host "mo:url-kit/Host";
+
+let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+
+// Parse host with port (requires domain parser)
+let hostResult = Host.fromText("example.com:8080", domainParser);
+// Result: (#domain({...}), ?8080)
+
+// Convert host to text
+let hostText = Host.toText(host);
+
+// Normalize host (lowercase domains and hostnames)
+let normalized = Host.normalize(host);
+```
+
 ## Path Handling
 
 ```motoko
@@ -278,7 +320,7 @@ import Path "mo:url-kit/Path";
 
 // Parse path with custom separator
 let path = Path.fromText("/api/v1/users");
-// Result: ["api", "v1", "users"]
+// Result: ?["api", "v1", "users"]
 
 // Convert path back to text
 let pathText = Path.toText(path); // "/api/v1/users"
@@ -288,7 +330,7 @@ let newPath = Path.join(path, "123");
 let newNewPath = Path.joinMulti(newPath, ["456", "profile"]);
 // Result: ["api", "v1", "users", "123", "profile"]
 
-// Normalize path (removes empty segments, lowercases)
+// Normalize path (removes empty segments)
 let normalized = Path.normalize(path);
 ```
 
@@ -358,6 +400,8 @@ let normalized = Path.normalize(path);
 
 URL Kit includes an automatically generated domain suffix list based on the [Public Suffix List](https://publicsuffix.org/) for accurate domain parsing. The suffix list helps distinguish between domain names and subdomains.
 
+The [`ComprehensiveDomainParser`](src/ComprehensiveDomainParser.mo) uses this comprehensive list for accurate domain parsing, while you can also create custom parsers with [`Domain.fromText`](src/Domain.mo) for specific use cases.
+
 ### Updating the Suffix List
 
 The domain suffix list should be updated periodically to include new top-level domains and suffixes. Run the provided script to regenerate the list:
@@ -371,19 +415,20 @@ This script:
 
 1. Downloads the latest Public Suffix List from https://publicsuffix.org/
 2. Processes and filters the data
-3. Generates a new `src/data/DomainSuffixList.mo` file with the current suffixes
+3. Generates a new `src/data/DomainSuffixData.mo` file with the current suffixes
 4. Structures the data as an efficient tree for fast lookups
 
-The generated file contains a tree structure that allows for efficient suffix matching during domain parsing. You should run this script periodically (e.g., monthly) to keep the suffix list current.
+The generated file contains a compressed tree structure that allows for efficient suffix matching during domain parsing. You should run this script periodically (e.g., monthly) to keep the suffix list current.
 
 ## Performance
 
 URL Kit is designed for performance with:
 
-- **Efficient Domain Matching**: Tree-based suffix lookup for O(log n) domain validation
-- **Minimal Allocations**: Careful memory management during parsing
-- **Lazy Evaluation**: Components are parsed only when needed
-- **Optimized String Operations**: Efficient text processing for encoding/decoding
+-   **Efficient Domain Matching**: Tree-based suffix lookup for O(log n) domain validation
+-   **Minimal Allocations**: Careful memory management during parsing
+-   **Lazy Evaluation**: Components are parsed only when needed
+-   **Optimized String Operations**: Efficient text processing for encoding/decoding
+-   **Compressed Suffix Data**: Compact representation of the public suffix list
 
 ## Testing
 
@@ -395,13 +440,41 @@ mops test
 
 The test suite covers:
 
-- URL parsing success and failure cases
-- All host type variations (domains, IPv4, IPv6, hostnames)
-- Query parameter manipulation
-- URL encoding/decoding edge cases
-- Normalization and equality comparison
-- IPv6 address formatting variations
-- Error handling scenarios
+-   URL parsing success and failure cases
+-   All host type variations (domains, IPv4, IPv6, hostnames)
+-   Query parameter manipulation
+-   URL encoding/decoding edge cases
+-   Normalization and equality comparison
+-   IPv6 address formatting variations
+-   Domain parser functionality
+-   Error handling scenarios
+
+## Migration from v1.x
+
+### Breaking Changes in v2.0
+
+1. **Domain Parser Required**: All URL parsing functions now require a `domainParser` parameter:
+
+    ```motoko
+    // Old (v1.x)
+    UrlKit.fromText("https://example.com")
+
+    // New (v2.0)
+    import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
+    let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+    UrlKit.fromText("https://example.com", domainParser)
+    ```
+
+2. **Domain Parsing**: Domain parsing is now more flexible with custom suffix support:
+
+    ```motoko
+    // Using comprehensive parser (recommended)
+    let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+    let result = domainParser.parse("example.com");
+
+    // Using custom suffixes
+    let result = Domain.fromText("example.test", ["test", "local"]);
+    ```
 
 ## Contributing
 
