@@ -1,6 +1,6 @@
 [package]
 name = "url-kit"
-version = "2.0.0"
+version = "3.0.0"
 description = "A library with Url helper utilities for parsing and manipulation"
 repository = "https://github.com/edjcase/motoko_url_kit"
 keywords = ["url", "query", "parse", "domain", "web", "encode"]

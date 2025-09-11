@@ -7,13 +7,13 @@ A comprehensive URL parsing and manipulation library for Motoko on the Internet 
 
 ## Overview
 
-URL Kit is a robust library designed to handle all aspects of URL processing in Motoko applications. It provides complete RFC-compliant URL parsing, validation, manipulation, and encoding/decoding capabilities with support for various host types and comprehensive error handling.
+URL Kit is a robust library designed to handle all aspects of URL processing in Motoko applications. It provides complete RFC-compliant URL parsing, validation, manipulation, and encoding/decoding capabilities with support for various host types, optional domain parsing, and comprehensive error handling.
 
 Key features:
 
 -   🔍 **Complete URL Parsing**: Parse any URL into structured components (scheme, authority, path, query, fragment)
--   🌐 **Multi-Host Support**: Handle domains, hostnames, IPv4, and IPv6 addresses with proper validation
--   🏷️ **Domain Validation**: Built-in public suffix list validation for accurate domain parsing
+-   🌐 **Multi-Host Support**: Handle host names, IPv4, and IPv6 addresses with proper validation
+-   🏷️ **Flexible Domain Parsing**: Optional domain parsing with comprehensive or custom suffix lists
 -   🔗 **URL Manipulation**: Add, remove, and modify query parameters with ease
 -   🔄 **Encoding/Decoding**: Proper URL encoding and decoding with UTF-8 support
 -   ⚖️ **Normalization**: Normalize URLs for accurate comparison and deduplication
@@ -38,17 +38,9 @@ Here's a simple example to get started with URL parsing:
 
 ```motoko
 import UrlKit "mo:url-kit";
-import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
 
-// Create a domain parser
-// Either a comprehesive parser from Public Suffix list https://publicsuffix.org/list/public_suffix_list.dat (requires more memory/initial loading/WASM size)
-let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
-
-// OR a simple and smaller domains that you specify
-// let domainParser = UrlKit.SimpleDomainParser(["my-domain1.com", "my-domain2.com"])
-
-// Parse a URL
-let urlResult = UrlKit.fromText("https://api.example.com:8080/users?page=1&limit=10#results", domainParser);
+// Parse a URL - no domain parser needed for basic parsing
+let urlResult = UrlKit.fromText("https://api.example.com:8080/users?page=1&limit=10#results");
 
 let url = switch (urlResult) {
     case (#ok(url)) url;
@@ -62,11 +54,7 @@ let url = switch (urlResult) {
      scheme = ?"https";
      authority = ?{
         user = null;
-        host = #domain({
-            name = "example";
-            suffix = "com";
-            subdomains = ["api"];
-        });
+        host = #name("api.example.com");  // Host names are parsed as simple strings
         port = ?8080;
      };
      path = ["users"];
@@ -91,11 +79,6 @@ Here's a more detailed example showing various URL manipulation capabilities:
 ```motoko
 import UrlKit "mo:url-kit";
 import Host "mo:url-kit/Host";
-import Domain "mo:url-kit/Domain";
-import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
-
-// Create domain parser
-let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
 
 // Parse different types of URLs
 let examples = [
@@ -107,29 +90,24 @@ let examples = [
 ];
 
 for (urlText in examples.vals()) {
-    switch (UrlKit.fromText(urlText, domainParser)) {
+    switch (UrlKit.fromText(urlText)) {
         case (#ok(url)) {
             // Analyze the URL structure
             switch (url.authority) {
                 case (?authority) {
                     // Check host type
                     switch (authority.host) {
-                        case (#domain(domain)) {
-                            // Work with domain components
-                            let domainName = domain.name; // "example"
-                            let suffix = domain.suffix; // "com"
-                            let subdomains = domain.subdomains; // ["sub"]
+                        case (#name(hostName)) {
+                            // Host name (domain name, hostname, etc.)
+                            // For domain parsing, use the separate domain parsers
                         };
                         case (#ipV4(ip)) {
                             // IPv4 address: (192, 168, 1, 1)
-                            let hostText = Host.toText(authority.host, authority.port);
+                            let hostText = Host.toText(authority.host);
                         };
                         case (#ipV6(ip)) {
                             // IPv6 address with proper formatting
-                            let hostText = Host.toText(authority.host, authority.port);
-                        };
-                        case (#hostname(name)) {
-                            // Simple hostname like "localhost"
+                            let hostText = Host.toText(authority.host);
                         };
                     };
 
@@ -183,28 +161,16 @@ public type Url = {
 
 public type Authority = {
     user : ?UserInfo;        // Username and password
-    host : Host.Host;        // Domain, hostname, or IP address
+    host : Host.Host;        // Host name or IP address
     port : ?Nat16;          // Port number
 };
-```
-
-### Domain Parser
-
-```motoko
-import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
-
-// Create a comprehensive domain parser (recommended)
-let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
-
-// Or create a simple domain parser with custom suffixes
-let simpleDomainParser = UrlKit.SimpleDomainParser(["com", "org", "net"]);
 ```
 
 ### Parsing and Conversion
 
 ```motoko
-// Parse URL from text (requires domain parser)
-UrlKit.fromText(url : Text, domainParser : Domain.DomainParser) : Result.Result<Url, Text>
+// Parse URL from text
+UrlKit.fromText(url : Text) : Result.Result<Url, Text>
 
 // Convert URL back to text
 UrlKit.toText(url : Url) : Text
@@ -249,23 +215,20 @@ UrlKit.decodeText(value : Text) : Result.Result<Text, Text>
 
 URL Kit supports various host types with proper validation:
 
-### Domains
+### Host Names
 
 ```motoko
-import Domain "mo:url-kit/Domain";
+import Host "mo:url-kit/Host";
 
-// Parse domain with specified domains
-let domainResult = Domain.fromText("blog.github.io", ["github.io"]);
-// Result: { name = "blog"; suffix = "github.io"; subdomains = [] }
+// Parse host with optional port
+let hostResult = Host.fromText("example.com:8080");
+// Result: (#name("example.com"), ?8080)
 
-// Validate domain structure
-let validation = Domain.validate(domain);
+// Convert host to text
+let hostText = Host.toText(host);
 
-// Convert domain to text
-let domainText = Domain.toText(domain);
-
-// Normalize domain (lowercase)
-let normalized = Domain.normalize(domain);
+// Normalize host (lowercase)
+let normalized = Host.normalize(host);
 ```
 
 ### IPv4 Addresses
@@ -300,16 +263,14 @@ let compressed = IpV6.toText(ip, #compressed); // "2001:db8::1"
 ```motoko
 import Host "mo:url-kit/Host";
 
-let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
-
-// Parse host with port (requires domain parser)
-let hostResult = Host.fromText("example.com:8080", domainParser);
-// Result: (#domain({...}), ?8080)
+// Parse host with port
+let hostResult = Host.fromText("example.com:8080");
+// Result: (#name("example.com"), ?8080)
 
 // Convert host to text
 let hostText = Host.toText(host);
 
-// Normalize host (lowercase domains and hostnames)
+// Normalize host (lowercase)
 let normalized = Host.normalize(host);
 ```
 
@@ -396,6 +357,115 @@ let normalized = Path.normalize(path);
 "#section1"
 ```
 
+## Domain Parsing
+
+As of v3.0, domain parsing has been separated from basic host parsing. The Host type now simply stores names as strings (`#name`), and domain parsing is handled by dedicated domain parsers when needed.
+
+### Domain Parsers
+
+URL Kit provides two types of domain parsers:
+
+#### Comprehensive Domain Parser (Recommended)
+
+Uses the complete Public Suffix List for accurate domain parsing:
+
+```motoko
+import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
+import Domain "mo:url-kit/Domain";
+
+// Create a comprehensive domain parser
+let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+
+// Parse a domain name
+let domainResult = domainParser.parse("blog.github.io");
+// Result: #ok({ name = "github"; suffix = "io"; subdomains = ["blog"] })
+
+switch (domainResult) {
+    case (#ok(domain)) {
+        let name = domain.name; // "github"
+        let suffix = domain.suffix; // "io"
+        let subdomains = domain.subdomains; // ["blog"]
+    };
+    case (#err(msg)) {
+        // Handle parsing error
+    };
+};
+```
+
+#### Simple Domain Parser
+
+For custom domain suffix lists:
+
+```motoko
+import SimpleDomainParser "mo:url-kit/SimpleDomainParser";
+
+// Create a simple domain parser with custom suffixes
+let domainParser = SimpleDomainParser.SimpleDomainParser(["com", "org", "test", "local"]);
+
+// Parse a domain name
+let domainResult = domainParser.parse("api.example.com");
+// Result: #ok({ name = "example"; suffix = "com"; subdomains = ["api"] })
+```
+
+### Domain Operations
+
+```motoko
+import Domain "mo:url-kit/Domain";
+
+// Parse domain with specified suffixes
+let domainResult = Domain.fromText("blog.github.io", ["github.io", "io"]);
+
+// Validate domain structure
+let validation = Domain.validate(domain);
+
+// Convert domain to text
+let domainText = Domain.toText(domain);
+
+// Normalize domain (lowercase)
+let normalized = Domain.normalize(domain);
+```
+
+### Integration with URLs
+
+When you need domain parsing for URLs, extract the host name and parse it separately:
+
+```motoko
+import UrlKit "mo:url-kit";
+import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
+
+let url = switch (UrlKit.fromText("https://blog.example.com/path")) {
+    case (#ok(u)) u;
+    case (#err(_)) return; // Handle error
+};
+
+// Extract host name for domain parsing
+switch (url.authority) {
+    case (?authority) {
+        switch (authority.host) {
+            case (#name(hostName)) {
+                // Parse the host name as a domain
+                let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+                let domainResult = domainParser.parse(hostName);
+
+                switch (domainResult) {
+                    case (#ok(domain)) {
+                        // Work with parsed domain components
+                        let rootDomain = domain.name # "." # domain.suffix; // "example.com"
+                    };
+                    case (#err(_)) {
+                        // Host name is not a valid domain (e.g., IP address, localhost)
+                    };
+                };
+            };
+            case (#ipV4(_) or #ipV6(_)) {
+                // IP addresses don't need domain parsing
+            };
+        };
+    };
+    case (null) {};
+};
+```
+
 ## Domain Suffix List
 
 URL Kit includes an automatically generated domain suffix list based on the [Public Suffix List](https://publicsuffix.org/) for accurate domain parsing. The suffix list helps distinguish between domain names and subdomains.
@@ -449,7 +519,70 @@ The test suite covers:
 -   Domain parser functionality
 -   Error handling scenarios
 
-## Migration from v1.x
+## Migration Guide
+
+### Breaking Changes in v3.0
+
+1. **Host Type Simplified**: The Host type has been simplified by consolidating `#domain` and `#hostname` variants into a single `#name` variant:
+
+    ```motoko
+    // Old (v2.x)
+    switch (host) {
+        case (#domain(domain)) { /* domain components */ };
+        case (#hostname(name)) { /* hostname string */ };
+        case (#ipV4(ip)) { /* IPv4 address */ };
+        case (#ipV6(ip)) { /* IPv6 address */ };
+    };
+
+    // New (v3.0)
+    switch (host) {
+        case (#name(hostName)) { /* any host name string */ };
+        case (#ipV4(ip)) { /* IPv4 address */ };
+        case (#ipV6(ip)) { /* IPv6 address */ };
+    };
+    ```
+
+2. **Domain Parser Removed from URL Parsing**: URL parsing no longer requires a domain parser parameter:
+
+    ```motoko
+    // Old (v2.x)
+    import ComprehensiveDomainParser "mo:url-kit/ComprehensiveDomainParser";
+    let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+    UrlKit.fromText("https://example.com", domainParser)
+
+    // New (v3.0)
+    UrlKit.fromText("https://example.com")
+    ```
+
+3. **Separate Domain Parsing**: Domain parsing is now a separate step when needed:
+
+    ```motoko
+    // Old (v2.x) - automatic domain parsing
+    let url = UrlKit.fromText("https://blog.example.com", domainParser);
+    switch (url.authority.host) {
+        case (#domain(domain)) {
+            let name = domain.name; // "example"
+            let suffix = domain.suffix; // "com"
+            let subdomains = domain.subdomains; // ["blog"]
+        };
+    };
+
+    // New (v3.0) - explicit domain parsing when needed
+    let url = UrlKit.fromText("https://blog.example.com");
+    switch (url.authority.host) {
+        case (#name(hostName)) {
+            let domainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
+            switch (domainParser.parse(hostName)) {
+                case (#ok(domain)) {
+                    let name = domain.name; // "example"
+                    let suffix = domain.suffix; // "com"
+                    let subdomains = domain.subdomains; // ["blog"]
+                };
+                case (#err(_)) { /* not a valid domain */ };
+            };
+        };
+    };
+    ```
 
 ### Breaking Changes in v2.0
 

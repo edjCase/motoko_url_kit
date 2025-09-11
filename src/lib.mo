@@ -10,7 +10,6 @@ import Path "./Path";
 import Host "./Host";
 import BaseX "mo:base-x-encoder@2";
 import PeekableIter "mo:xtended-iter@1/PeekableIter";
-import Domain "./Domain";
 
 module UrlKit {
 
@@ -33,16 +32,6 @@ module UrlKit {
     password : Text;
   };
 
-  /// A simple domain parser using a provided list of known suffixes.
-  /// Use ComprehensiveDomainParser.ComprehensiveDomainParser for full public suffix list support.
-  public class SimpleDomainParser(suffixes : [Text]) : Domain.DomainParser {
-    let suffixList = suffixes;
-
-    public func parse(domain : Text) : Result.Result<Domain.Domain, Text> {
-      Domain.fromText(domain, suffixList);
-    };
-  };
-
   /// Parses a URL string into a structured Url object.
   /// Handles various URL formats including authority-based URLs, relative URLs, and special schemes.
   ///
@@ -53,7 +42,7 @@ module UrlKit {
   /// let relativeResult = UrlKit.fromText("/api/users");
   /// // relativeResult is #ok({ scheme = null; authority = null; path = ["api", "users"]; queryParams = []; fragment = null })
   /// ```
-  public func fromText(url : Text, domainParser : Domain.DomainParser) : Result.Result<Url, Text> {
+  public func fromText(url : Text) : Result.Result<Url, Text> {
     if (TextX.isEmptyOrWhitespace(url)) {
       return #ok({
         scheme = null;
@@ -184,7 +173,7 @@ module UrlKit {
       };
 
       if (not TextX.isEmptyOrWhitespace(authorityText)) {
-        authority := switch (parseAuthority(authorityText, domainParser)) {
+        authority := switch (parseAuthority(authorityText)) {
           case (#ok(auth)) ?auth;
           case (#err(errMsg)) return #err("Invalid URL authority: " # errMsg);
         };
@@ -484,7 +473,7 @@ module UrlKit {
 
   // ===== PRIVATE HELPER FUNCTIONS =====
 
-  private func parseAuthority(authorityText : Text, domainParser : Domain.DomainParser) : Result.Result<Authority, Text> {
+  private func parseAuthority(authorityText : Text) : Result.Result<Authority, Text> {
     // Validate no leading/trailing whitespace in authority
     if (authorityText != Text.trim(authorityText, #text(" "))) {
       return #err("Authority cannot have leading or trailing whitespace");
@@ -538,7 +527,7 @@ module UrlKit {
     };
 
     // Parse host and port
-    let (host, port) = switch (Host.fromText(hostAndPort, domainParser)) {
+    let (host, port) = switch (Host.fromText(hostAndPort)) {
       case (#ok(result)) result;
       case (#err(errMsg)) return #err(errMsg);
     };

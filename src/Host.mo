@@ -5,24 +5,22 @@ import Array "mo:core@1/Array";
 import Nat "mo:core@1/Nat";
 import TextX "mo:xtended-text@2/TextX";
 import Nat16 "mo:core@1/Nat16";
-import Domain "./Domain";
 import IpV4 "./IpV4";
 import IpV6 "./IpV6";
 
 module {
   public type Host = {
-    #domain : Domain.Domain;
-    #hostname : Text;
+    #name : Text;
     #ipV4 : IpV4.IpV4;
     #ipV6 : IpV6.IpV6;
   };
 
   /// Parses a host string (with optional port) into a Host and port tuple.
-  /// Supports IPv4, IPv6 (with brackets), domain names, and hostnames.
+  /// Supports IPv4, IPv6 (with brackets), and names.
   ///
   /// ```motoko
   /// let result1 = Host.fromText("example.com:8080");
-  /// // result1 is #ok((#domain({...}), ?8080))
+  /// // result1 is #ok((#name("example.com"), ?8080))
   ///
   /// let result2 = Host.fromText("[2001:db8::1]:9000");
   /// // result2 is #ok((#ipV6(...), ?9000))
@@ -30,7 +28,7 @@ module {
   /// let result3 = Host.fromText("192.168.1.1");
   /// // result3 is #ok((#ipV4((192, 168, 1, 1)), null))
   /// ```
-  public func fromText(hostAndPort : Text, domainParser : Domain.DomainParser) : Result.Result<(Host, ?Nat16), Text> {
+  public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat16), Text> {
     let trimmed = Text.trim(hostAndPort, #text(" "));
 
     // Handle empty case
@@ -51,7 +49,7 @@ module {
         let portPart = partsArray[1];
 
         // Parse the IPv6 host
-        let host = switch (fromTextHostOnly(ipv6Part, domainParser)) {
+        let host = switch (fromTextHostOnly(ipv6Part)) {
           case (#ok(h)) h;
           case (#err(msg)) return #err(msg);
         };
@@ -65,7 +63,7 @@ module {
         return #ok((host, port));
       } else if (Text.endsWith(trimmed, #text("]"))) {
         // IPv6 without port: [2001:db8::1]
-        let host = switch (fromTextHostOnly(trimmed, domainParser)) {
+        let host = switch (fromTextHostOnly(trimmed)) {
           case (#ok(h)) h;
           case (#err(msg)) return #err(msg);
         };
@@ -85,7 +83,7 @@ module {
         let hostPart = partsArray[0];
         let portPart = partsArray[1];
 
-        let host = switch (fromTextHostOnly(hostPart, domainParser)) {
+        let host = switch (fromTextHostOnly(hostPart)) {
           case (#ok(h)) h;
           case (#err(msg)) return #err(msg);
         };
@@ -103,7 +101,7 @@ module {
     };
 
     // No port, just host
-    let host = switch (fromTextHostOnly(trimmed, domainParser)) {
+    let host = switch (fromTextHostOnly(trimmed)) {
       case (#ok(h)) h;
       case (#err(msg)) return #err(msg);
     };
@@ -111,7 +109,7 @@ module {
     #ok((host, null));
   };
 
-  private func fromTextHostOnly(host : Text, domainParser : Domain.DomainParser) : Result.Result<Host, Text> {
+  private func fromTextHostOnly(host : Text) : Result.Result<Host, Text> {
     let trimmedHost = Text.trim(host, #text(" "));
 
     // Handle empty host
@@ -142,15 +140,9 @@ module {
     };
 
     // Try to parse as domain
-    switch (domainParser.parse(cleanHost)) {
-      case (#ok(domain)) return #ok(#domain(domain));
-      case (#err(_)) {
-        // If not a valid domain, validate as hostname
-        switch (validateHostname(cleanHost)) {
-          case (#ok()) return #ok(#hostname(cleanHost));
-          case (#err(msg)) return #err(msg);
-        };
-      };
+    switch (validateHostname(cleanHost)) {
+      case (#ok()) return #ok(#name(cleanHost));
+      case (#err(msg)) return #err(msg);
     };
   };
 
@@ -239,8 +231,7 @@ module {
 
   private func toTextHostOnly(host : Host) : Text {
     switch (host) {
-      case (#domain(d)) Domain.toText(d);
-      case (#hostname(name)) name;
+      case (#name(name)) name;
       case (#ipV4(ip)) IpV4.toText(ip);
       case (#ipV6(ip)) IpV6.toText(ip, #compressed);
     };
@@ -260,8 +251,7 @@ module {
   /// ```
   public func normalize(host : Host) : Host {
     switch (host) {
-      case (#domain(d)) #domain(Domain.normalize(d));
-      case (#hostname(name)) #hostname(Text.toLower(name));
+      case (#name(name)) #name(Text.toLower(name));
       case (#ipV4(ip)) #ipV4(ip);
       case (#ipV6(ip)) #ipV6(ip);
     };

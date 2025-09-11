@@ -5,11 +5,8 @@ import Array "mo:core@1/Array";
 import { test } "mo:test";
 import Bool "mo:core@1/Bool";
 import Runtime "mo:core@1/Runtime";
-import ComprehensiveDomainParser "../src/ComprehensiveDomainParser";
 
 // ===== HELPER FUNCTIONS =====
-
-let comprehensiveDomainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
 
 func formatError(testName : Text, input : Text, expected : Text, actual : Text) : Text {
   testName # " failed:\n" #
@@ -85,69 +82,49 @@ test(
       {
         input = "example.com";
         expected = (
-          #domain({
-            name = "example";
-            suffix = "com";
-            subdomains = [];
-          }),
+          #name("example.com"),
           null,
         );
       },
       {
         input = "james.github.io"; // github.io is a suffix
         expected = (
-          #domain({
-            name = "james";
-            suffix = "github.io";
-            subdomains = [];
-          }),
+          #name("james.github.io"),
           null,
         );
       },
       {
         input = "jim.git.io";
         expected = (
-          #domain({
-            name = "git";
-            suffix = "io";
-            subdomains = ["jim"];
-          }),
+          #name("jim.git.io"),
           null,
         );
       },
       {
         input = "jim.is.the.best.name.git.io";
         expected = (
-          #domain({
-            name = "git";
-            suffix = "io";
-            subdomains = ["jim", "is", "the", "best", "name"];
-          }),
+          #name("jim.is.the.best.name.git.io"),
           null,
         );
       },
       {
         input = "example.com:8080";
         expected = (
-          #domain({
-            name = "example";
-            suffix = "com";
-            subdomains = [];
-          }),
+          #name("example.com"),
           ?8080,
         );
       },
       {
         input = "localhost";
         expected = (
-          #hostname("localhost"),
+          #name("localhost"),
           null,
         );
       },
       {
         input = "localhost:3000";
         expected = (
-          #hostname("localhost"),
+          #name("localhost"),
           ?3000,
         );
       },
@@ -196,7 +173,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (Host.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (Host.fromText(testCase.input)) {
         case (#ok(hostOrNull)) {
           if (hostOrNull != testCase.expected) {
             Runtime.trap(
@@ -225,11 +202,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -243,7 +216,7 @@ test(
           scheme = ?"http";
           authority = ?{
             user = null;
-            host = #hostname("localhost");
+            host = #name("localhost");
             port = ?8080;
           };
           path = [];
@@ -257,11 +230,7 @@ test(
           scheme = ?"ftp";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "org";
-              subdomains = ["files"];
-            });
+            host = #name("files.example.org");
             port = null;
           };
           path = [];
@@ -299,11 +268,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -317,11 +282,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = ["path", "to", "resource"];
@@ -337,11 +298,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -355,11 +312,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -373,11 +326,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -391,11 +340,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -409,11 +354,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -428,11 +369,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -446,11 +383,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -466,11 +399,7 @@ test(
           scheme = ?"custom-scheme";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -486,11 +415,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = ["sub", "domain"];
-            });
+            host = #name("sub.domain.example.com");
             port = ?8443;
           };
           path = ["path"];
@@ -506,11 +431,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = [];
@@ -542,11 +463,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = ["page"];
@@ -560,11 +477,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = ["path"];
@@ -697,11 +610,7 @@ test(
               username = "user";
               password = "pass";
             };
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = ["path"];
@@ -718,11 +627,7 @@ test(
               username = "john";
               password = "";
             };
-            host = #domain({
-              name = "example";
-              suffix = "org";
-              subdomains = ["files"];
-            });
+            host = #name("files.example.org");
             port = ?2121;
           };
           path = ["upload"];
@@ -790,7 +695,7 @@ test(
           scheme = ?"file";
           authority = ?{
             user = null;
-            host = #hostname("server");
+            host = #name("server");
             port = null;
           };
           path = ["share", "file.txt"];
@@ -804,7 +709,7 @@ test(
           scheme = ?"file";
           authority = ?{
             user = null;
-            host = #hostname("localhost");
+            host = #name("localhost");
             port = null;
           };
           path = ["path", "to", "file"];
@@ -820,11 +725,7 @@ test(
           scheme = null;
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = ["path"];
@@ -890,11 +791,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = ["path", "with%20spaces"]; // Encoded spaces preserved in path
@@ -908,11 +805,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #domain({
-              name = "example";
-              suffix = "com";
-              subdomains = [];
-            });
+            host = #name("example.com");
             port = null;
           };
           path = ["path", "", "double", "", "slashes"]; // Empty segments preserved
@@ -937,7 +830,7 @@ test(
           scheme = ?"https";
           authority = ?{
             user = null;
-            host = #hostname("example.c"); // invalid tld, so resolved as hostname
+            host = #name("example.c"); // invalid tld, so resolved as hostname
             port = null;
           };
           path = [];
@@ -968,7 +861,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(actualUrl)) {
           if (not UrlKit.equal(actualUrl, testCase.expected)) {
             Runtime.trap(
@@ -1047,7 +940,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(actual)) {
           Runtime.trap(
             "Test failed\n" #
@@ -1102,10 +995,10 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(url)) {
           let reconstructed = UrlKit.toText(url);
-          switch (UrlKit.fromText(reconstructed, comprehensiveDomainParser)) {
+          switch (UrlKit.fromText(reconstructed)) {
             case (#ok(_)) {}; // Success
             case (#err(msg)) {
               Runtime.trap(formatError("toText roundtrip", testCase.input, "parseable URL", "unparseable: " # msg));
@@ -1169,7 +1062,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.url)) {
         case (#ok(url)) {
           let result = UrlKit.getQueryParam(url, testCase.key);
           switch (testCase.expectedValue, result) {
@@ -1232,7 +1125,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.url)) {
         case (#ok(url)) {
           let updatedUrl = if (testCase.operation == "addQueryParam" and testCase.params.size() > 0) {
             UrlKit.addQueryParam(url, testCase.params[0]);
@@ -1308,7 +1201,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.url)) {
         case (#ok(url)) {
           let keysToRemove = Array.map(testCase.params, func((k, _) : (Text, Text)) : Text = k);
 
@@ -1409,9 +1302,9 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url1, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.url1)) {
         case (#ok(url1)) {
-          switch (UrlKit.fromText(testCase.url2, comprehensiveDomainParser)) {
+          switch (UrlKit.fromText(testCase.url2)) {
             case (#ok(url2)) {
               let result = UrlKit.equal(url1, url2);
               if (result != testCase.shouldBeEqual) {
@@ -1448,7 +1341,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(url)) {
           let normalized = UrlKit.normalize(url);
           let result = UrlKit.toText(normalized);
@@ -1497,7 +1390,7 @@ test(
     ];
 
     for (testCase in userInfoTestCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(url)) {
           // Check user info was parsed correctly
           switch (url.authority) {
@@ -1562,7 +1455,7 @@ test(
     ];
 
     for (testCase in ipv6TestCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(url)) {
           // Verify host type
           switch (url.authority) {
@@ -1621,7 +1514,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(url)) {
           // Check fragment was decoded properly
           switch (url.fragment, testCase.expectedFragment) {
@@ -1669,7 +1562,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.input)) {
         case (#ok(url)) {
           let normalizedUrl = UrlKit.normalize(url);
           if (normalizedUrl.path != testCase.expectedPath) {
@@ -1704,7 +1597,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
+      switch (UrlKit.fromText(testCase.url)) {
         case (#ok(url)) {
           let urlWithParams = UrlKit.addQueryParamMulti(url, testCase.params);
           let result = UrlKit.toText(urlWithParams);

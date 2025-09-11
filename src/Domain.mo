@@ -44,97 +44,6 @@ module {
     fromTextAdvanced(domain, customSuffixMap);
   };
 
-  private func buildSuffixMap(suffixes : [Text]) : Map.Map<Text, SuffixEntry> {
-    let customSuffixMap = Map.empty<Text, SuffixEntry>();
-    for (suffix in suffixes.vals()) {
-      addToSuffixMap(suffix, customSuffixMap);
-    };
-    customSuffixMap;
-  };
-
-  private func addToSuffixMap(suffix : Text, map : Map.Map<Text, SuffixEntry>) {
-    let (suffixPrefixOrNull, suffixSuffix) = splitOnLastDot(suffix);
-
-    let isLast = suffixPrefixOrNull == null;
-
-    let newOrUpdatedEntry = switch (Map.get(map, Text.compare, suffixSuffix)) {
-      case (?existing) {
-        switch (suffixPrefixOrNull) {
-          case (?suffixPrefix) {
-            if (not Text.contains(suffixPrefix, #char('.')) and Text.startsWith(suffixPrefix, #text("!"))) {
-              // Prefix is an exception for a wildcard suffix
-              let ?realSuffixPrefix = Text.stripStart(suffixPrefix, #text("!")) else Runtime.unreachable();
-              let #wildcardWithExceptions(exceptions) = existing.childRule else Runtime.trap("Exceptions can only be added for existing wildcard suffixes");
-
-              // Update entry with new exception
-              {
-                existing with
-                childRule = #wildcardWithExceptions(Array.concat(exceptions, [realSuffixPrefix]));
-              };
-            } else {
-              // Regular prefix, add/update child entry
-              let childMap = switch (existing.childRule) {
-                case (#none) Map.empty<Text, SuffixEntry>(); // Create new child map
-                case (#specific(childMap)) childMap; // Use existing child map
-                case (#wildcardWithExceptions(_)) Runtime.trap("Cannot add more specific suffixes under a wildcard");
-              };
-              addToSuffixMap(suffixPrefix, childMap); // Update child map
-              {
-                existing with
-                childRule = #specific(childMap);
-              };
-            };
-          };
-          case (null) {
-            // Update terminal status if this is the complete suffix
-            {
-              existing with
-              isTerminal = true;
-            };
-          };
-        };
-      };
-      case (null) {
-        {
-          isTerminal = isLast;
-          childRule = if (isLast and suffixSuffix == "*") {
-            #wildcardWithExceptions([]);
-          } else {
-            #none;
-          };
-        };
-      };
-    };
-    Map.add(
-      map,
-      Text.compare,
-      suffixSuffix,
-      newOrUpdatedEntry,
-    );
-  };
-
-  func splitOnLastDot(value : Text) : (?Text, Text) {
-    let chars = value.chars();
-    var lastDotPos : ?Nat = null;
-    var pos : Nat = 0;
-
-    for (c in chars) {
-      if (c == '.') {
-        lastDotPos := ?pos;
-      };
-      pos += 1;
-    };
-
-    switch (lastDotPos) {
-      case null (null, value);
-      case (?dotPos) {
-        let prefix = Text.fromIter(value.chars() |> Iter.take(_, dotPos));
-        let suffix = Text.fromIter(value.chars() |> Iter.drop(_, dotPos + 1));
-        (?prefix, suffix);
-      };
-    };
-  };
-
   public func fromTextAdvanced(
     domain : Text,
     suffixes : Map.Map<Text, SuffixEntry>,
@@ -228,6 +137,104 @@ module {
     switch (validate(d)) {
       case (#err(err)) #err(err);
       case (#ok) #ok(d);
+    };
+  };
+
+  public func buildSuffixMap(suffixes : [Text]) : Map.Map<Text, SuffixEntry> {
+    let customSuffixMap = Map.empty<Text, SuffixEntry>();
+    for (suffix in suffixes.vals()) {
+      addToSuffixMap(suffix, customSuffixMap);
+    };
+    customSuffixMap;
+  };
+
+  private func addToSuffixMap(suffix : Text, map : Map.Map<Text, SuffixEntry>) {
+    let (suffixPrefixOrNull, suffixSuffix) = splitOnLastDot(suffix);
+    let isLast = suffixPrefixOrNull == null;
+
+    let newOrUpdatedEntry = switch (Map.get(map, Text.compare, suffixSuffix)) {
+      case (?existing) {
+        switch (suffixPrefixOrNull) {
+          case (?suffixPrefix) {
+            let childRule = buildChildRule(suffixPrefix, ?existing.childRule);
+            {
+              existing with
+              childRule = childRule;
+            };
+          };
+          case (null) {
+            // Update terminal status if this is the complete suffix
+            {
+              existing with
+              isTerminal = true;
+            };
+          };
+        };
+      };
+      case (null) {
+        let childRule = switch (suffixPrefixOrNull) {
+          case (?suffixPrefix) buildChildRule(suffixPrefix, null);
+          case (null) #none;
+        };
+        {
+          isTerminal = isLast;
+          childRule = childRule;
+        };
+      };
+    };
+    Map.add(
+      map,
+      Text.compare,
+      suffixSuffix,
+      newOrUpdatedEntry,
+    );
+  };
+
+  func buildChildRule(suffixPrefix : Text, existingChildRule : ?SuffixChildRule) : SuffixChildRule {
+    if (suffixPrefix == "*") {
+      return #wildcardWithExceptions([]);
+    };
+    if (not Text.contains(suffixPrefix, #char('.')) and Text.startsWith(suffixPrefix, #text("!"))) {
+      // Prefix is an exception for a wildcard suffix
+      let ?realSuffixPrefix = Text.stripStart(suffixPrefix, #text("!")) else Runtime.unreachable();
+
+      let exceptions = switch (existingChildRule) {
+        case (?#wildcardWithExceptions(exceptions)) Array.concat(exceptions, [realSuffixPrefix]);
+        case (_) Runtime.trap("Cannot add exception to non-wildcard suffix");
+      };
+      // Update entry with new exception
+      #wildcardWithExceptions(exceptions);
+    } else {
+      // Regular prefix, add/update child entry
+      let childMap = switch (existingChildRule) {
+        case (null or ?#none) Map.empty<Text, SuffixEntry>(); // Create new child map
+        case (?#specific(childMap)) childMap; // Use existing child map
+        case (?#wildcardWithExceptions(_)) Runtime.trap("Cannot add more specific suffixes under a wildcard");
+      };
+      addToSuffixMap(suffixPrefix, childMap); // Update child map
+      #specific(childMap);
+    };
+  };
+
+  func splitOnLastDot(value : Text) : (?Text, Text) {
+    let chars = value.chars();
+    var lastDotPos : ?Nat = null;
+    var pos : Nat = 0;
+
+    for (c in chars) {
+      if (c == '.') {
+        lastDotPos := ?pos;
+      };
+      pos += 1;
+    };
+
+    switch (lastDotPos) {
+      case null (null, value);
+      case (?dotPos) {
+        let prefix = Text.fromIter(value.chars() |> Iter.take(_, dotPos));
+        let suffix = Text.fromIter(value.chars() |> Iter.drop(_, dotPos + 1));
+        (?prefix, suffix);
+      };
     };
   };
 
