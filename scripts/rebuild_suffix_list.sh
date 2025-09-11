@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Public Suffix List to Motoko Tree Module Converter
+# Public Suffix List to Motoko Compact Format Converter
 # Downloads from https://publicsuffix.org/list/public_suffix_list.dat
-# Converts to Motoko tree module format and outputs to DomainSuffixList.mo
+# Converts to compact format and outputs to DomainSuffixData.mo
 
 set -e
 
@@ -14,7 +14,7 @@ PROCESSED_FILE="processed_suffixes.txt"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Build output path relative to script location
-RELATIVE_OUTPUT_PATH="$SCRIPT_DIR/../src/data/DomainSuffixList.mo"
+RELATIVE_OUTPUT_PATH="$SCRIPT_DIR/../src/data/DomainSuffixData.mo"
 
 # Convert to absolute path using multiple fallback methods
 get_absolute_path() {
@@ -91,92 +91,101 @@ fi
 
 echo "Processing public suffix list..."
 
-# Process the file: remove comments, empty lines, wildcards, and exceptions
+# Process the file: remove comments and empty lines only
 grep -v '^//' "$TEMP_FILE" | \
-grep -v '^[[:space:]]*$' | \
-sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
-grep -v '^!' | \
-sed 's/^\*\.//' > "$PROCESSED_FILE"
+grep -v '^[[:space:]]*$' > "$PROCESSED_FILE"
 
-echo "Converting to Motoko tree module format..."
+echo "Converting to compact format..."
 
-# Use Python for efficient tree building and write directly to the correct output file
+# Use Python for building compact format
 python3 -c "
 import sys
 from collections import defaultdict
 
 # Read all suffixes
-suffixes = set()
+suffixes = []
 with open('processed_suffixes.txt', 'r') as f:
     for line in f:
         line = line.strip()
         if line:
-            suffixes.add(line)
+            suffixes.append(line)
 
-# Build tree structure efficiently
-tree = defaultdict(lambda: {'is_terminal': False, 'children': defaultdict(lambda: {'is_terminal': False, 'children': {}})})
+# Build tree structure with terminal marking
+tree = {}
+terminals = set()
+wildcards = {}
 
-# Process each suffix
 for suffix in suffixes:
     parts = suffix.split('.')
+    if (parts[0] == '*'):
+        parts = parts[1:]  # Remove wildcard part
+        wildcards['.'.join(parts)] = []
+    elif (parts[0].startswith('!')):
+        key = '.'.join(parts[1:])
+        # raise ValueError(f'Exception without wildcard base: {key} for wildcards {wildcards.keys()} adding {parts[0][1:]}')
+        wildcards['.'.join(parts[1:])].append(parts[0][1:])
+        continue  # Ignore exceptions for tree building
+    else:
+        terminals.add(suffix)
+    
     parts.reverse()  # Reverse to start from TLD
     
     current = tree
     path = []
-    
-    for i, part in enumerate(parts):
+    for part in parts:
         path.append(part)
         if part not in current:
-            current[part] = {'is_terminal': False, 'children': defaultdict(lambda: {'is_terminal': False, 'children': {}})}
-        
-        # Check if this partial path is a terminal suffix
-        current_suffix = '.'.join(reversed(path))
-        if current_suffix in suffixes:
-            current[part]['is_terminal'] = True
-            
-        current = current[part]['children']
+            current[part] = {}
+        current = current[part]
 
-def generate_motoko_tree(node_dict, indent_level=2):
-    if not node_dict:
+def serialize_node(node, path=''):
+    if not node:
         return ''
     
-    indent = '  ' * indent_level
-    entries = []
+    sorted_keys = sorted(node.keys())
+    segments = []
     
-    for key in sorted(node_dict.keys()):
-        node = node_dict[key]
-        is_terminal = str(node['is_terminal']).lower()
+    for key in sorted_keys:
+        current_path = f'{key}.{path}' if path else key
+        children = node[key]
         
-        children_code = generate_motoko_tree(node['children'], indent_level + 1)
-        
-        entry = f'{indent}{{\\n{indent}  id = \"{key}\";\\n{indent}  isTerminal = {is_terminal};\\n{indent}  children = ['
-        
-        if children_code:
-            entry += f'\\n{children_code}\\n{indent}  ];\\n{indent}}}'
+        is_terminal = current_path in terminals
+        segment = key
+        if children:
+            child_str = serialize_node(children, current_path)
+
+            if is_terminal:
+                segment += '!'
+            segment += f'>{child_str}'
+
+            segments.append(segment)
         else:
-            entry += f'];\\n{indent}}}'
-            
-        entries.append(entry)
+            # Leaf node
+            if current_path in wildcards:
+                segment += ('^' if is_terminal else '*') + ','.join(wildcards[current_path])
+            segments.append(segment)
     
-    return ',\\n'.join(entries)
+    if not path:  # Root level
+        return '|'.join(segments)
+    else:
+        # Process segments to add parentheses only around individual items with children
+        processed_segments = []
+        for segment in segments:
+            if '>' in segment:
+                processed_segments.append(f'({segment})')
+            else:
+                processed_segments.append(segment)
+        
+        return ','.join(processed_segments)
+
+compact_format = serialize_node(tree)
 
 motoko_content = f'''module {{
-  public type SuffixEntry = {{
-    id : Text;
-    isTerminal : Bool; // Can end here
-    children : [SuffixEntry]; // Possible sub-suffixes
-  }};
-
-  public let value = [
-{generate_motoko_tree(tree)}
-  ];
+  public let value = \"{compact_format}\";
 }}'''
 
-with open('$OUTPUT_FILE', 'w') as f:
+with open('src/data/DomainSuffixData.mo', 'w') as f:
     f.write(motoko_content)
-
-print(f'Total suffixes processed: {len(suffixes)}')
-print(f'Top-level domains: {len(tree)}')
 "
 
 # Check if output file was created successfully
@@ -189,4 +198,4 @@ fi
 # Clean up temporary files
 rm -f "$TEMP_FILE" "$PROCESSED_FILE"
 
-echo "Conversion complete! Motoko tree module saved to: $OUTPUT_FILE"
+echo "Conversion complete! Motoko compact format saved to: $OUTPUT_FILE"

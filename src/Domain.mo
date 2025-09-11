@@ -5,7 +5,8 @@ import Iter "mo:core@1/Iter";
 import Nat "mo:core@1/Nat";
 import Char "mo:core@1/Char";
 import TextX "mo:xtended-text@2/TextX";
-import DomainSuffixList "./data/DomainSuffixList";
+import Map "mo:core@1/Map";
+import Runtime "mo:core@1/Runtime";
 
 module {
   public type Domain = {
@@ -14,30 +15,130 @@ module {
     subdomains : [Text];
   };
 
-  /// Parses a domain string into a Domain structure using the default suffix list.
-  /// The domain is validated against known public suffixes to properly separate
-  /// the domain name from its suffix.
-  ///
-  /// ```motoko
-  /// let domain = Domain.fromText("www.example.com");
-  /// // domain is #ok({ name = "example"; suffix = "com"; subdomains = ["www"] })
-  ///
-  /// let githubDomain = Domain.fromText("user.github.io");
-  /// // githubDomain is #ok({ name = "user"; suffix = "github.io"; subdomains = [] })
-  /// ```
-  public func fromText(domain : Text) : Result.Result<Domain, Text> {
-    fromTextWithSuffixes(domain, DomainSuffixList.value);
+  public type DomainParser = {
+    parse : (domain : Text) -> Result.Result<Domain, Text>;
+  };
+
+  public type SuffixEntry = {
+    isTerminal : Bool; // Can end here
+    childRule : SuffixChildRule;
+  };
+
+  public type SuffixChildRule = {
+    #none;
+    #specific : Map.Map<Text, SuffixEntry>; // Possible sub-suffixes
+    #wildcardWithExceptions : [Text]; // Exceptions for wildcard
   };
 
   /// Parses a domain string into a Domain structure using a custom suffix list.
   /// This allows using a different set of known suffixes than the default.
+  /// For all known domain suffixes, use `DomainParser` module.
   ///
   /// ```motoko
-  /// let customSuffixes = [{ id = "test"; isTerminal = true; children = [] }];
+  /// let customSuffixes = ["test", "internal.test"];
   /// let domain = Domain.fromTextWithSuffixes("example.test", customSuffixes);
   /// // domain is #ok({ name = "example"; suffix = "test"; subdomains = [] })
   /// ```
-  public func fromTextWithSuffixes(domain : Text, suffixes : [DomainSuffixList.SuffixEntry]) : Result.Result<Domain, Text> {
+  public func fromText(domain : Text, suffixes : [Text]) : Result.Result<Domain, Text> {
+    let customSuffixMap = buildSuffixMap(suffixes);
+    fromTextAdvanced(domain, customSuffixMap);
+  };
+
+  private func buildSuffixMap(suffixes : [Text]) : Map.Map<Text, SuffixEntry> {
+    let customSuffixMap = Map.empty<Text, SuffixEntry>();
+    for (suffix in suffixes.vals()) {
+      addToSuffixMap(suffix, customSuffixMap);
+    };
+    customSuffixMap;
+  };
+
+  private func addToSuffixMap(suffix : Text, map : Map.Map<Text, SuffixEntry>) {
+    let (suffixPrefixOrNull, suffixSuffix) = splitOnLastDot(suffix);
+
+    let isLast = suffixPrefixOrNull == null;
+
+    let newOrUpdatedEntry = switch (Map.get(map, Text.compare, suffixSuffix)) {
+      case (?existing) {
+        switch (suffixPrefixOrNull) {
+          case (?suffixPrefix) {
+            if (not Text.contains(suffixPrefix, #char('.')) and Text.startsWith(suffixPrefix, #text("!"))) {
+              // Prefix is an exception for a wildcard suffix
+              let ?realSuffixPrefix = Text.stripStart(suffixPrefix, #text("!")) else Runtime.unreachable();
+              let #wildcardWithExceptions(exceptions) = existing.childRule else Runtime.trap("Exceptions can only be added for existing wildcard suffixes");
+
+              // Update entry with new exception
+              {
+                existing with
+                childRule = #wildcardWithExceptions(Array.concat(exceptions, [realSuffixPrefix]));
+              };
+            } else {
+              // Regular prefix, add/update child entry
+              let childMap = switch (existing.childRule) {
+                case (#none) Map.empty<Text, SuffixEntry>(); // Create new child map
+                case (#specific(childMap)) childMap; // Use existing child map
+                case (#wildcardWithExceptions(_)) Runtime.trap("Cannot add more specific suffixes under a wildcard");
+              };
+              addToSuffixMap(suffixPrefix, childMap); // Update child map
+              {
+                existing with
+                childRule = #specific(childMap);
+              };
+            };
+          };
+          case (null) {
+            // Update terminal status if this is the complete suffix
+            {
+              existing with
+              isTerminal = true;
+            };
+          };
+        };
+      };
+      case (null) {
+        {
+          isTerminal = isLast;
+          childRule = if (isLast and suffixSuffix == "*") {
+            #wildcardWithExceptions([]);
+          } else {
+            #none;
+          };
+        };
+      };
+    };
+    Map.add(
+      map,
+      Text.compare,
+      suffixSuffix,
+      newOrUpdatedEntry,
+    );
+  };
+
+  func splitOnLastDot(value : Text) : (?Text, Text) {
+    let chars = value.chars();
+    var lastDotPos : ?Nat = null;
+    var pos : Nat = 0;
+
+    for (c in chars) {
+      if (c == '.') {
+        lastDotPos := ?pos;
+      };
+      pos += 1;
+    };
+
+    switch (lastDotPos) {
+      case null (null, value);
+      case (?dotPos) {
+        let prefix = Text.fromIter(value.chars() |> Iter.take(_, dotPos));
+        let suffix = Text.fromIter(value.chars() |> Iter.drop(_, dotPos + 1));
+        (?prefix, suffix);
+      };
+    };
+  };
+
+  public func fromTextAdvanced(
+    domain : Text,
+    suffixes : Map.Map<Text, SuffixEntry>,
+  ) : Result.Result<Domain, Text> {
     let parts = Text.split(domain, #text("."));
     let partsArray = Iter.toArray(parts);
 
@@ -52,11 +153,6 @@ module {
     // Normalize to lowercase once
     let normalizedParts = Array.map<Text, Text>(partsArray, Text.toLower);
 
-    // Helper function to find a suffix entry by id (case-insensitive)
-    func findSuffixEntry(entries : [DomainSuffixList.SuffixEntry], targetId : Text) : ?DomainSuffixList.SuffixEntry {
-      Array.find<DomainSuffixList.SuffixEntry>(entries, func(entry) = Text.toLower(entry.id) == targetId);
-    };
-
     // Traverse the tree from TLD backwards, tracking only the length
     var currentEntries = suffixes;
     var longestSuffixLength = 0;
@@ -70,19 +166,36 @@ module {
       i -= 1;
       let part = normalizedParts[i];
 
-      switch (findSuffixEntry(currentEntries, part)) {
+      switch (Map.get(currentEntries, Text.compare, part)) {
         case (?entry) {
           currentLength += 1;
 
+          switch (entry.childRule) {
+            case (#none) ();
+            case (#specific(childMap)) {
+              currentEntries := childMap;
+            };
+            case (#wildcardWithExceptions(exceptions)) {
+              if (i >= 1) {
+                // Check if next part is an exception
+                switch (Array.indexOf(exceptions, Text.equal, normalizedParts[i - 1])) {
+                  case (null) {
+                    longestSuffixLength += i; // Can match any wildcard part
+                  };
+                  case (?_) (); // Exception matched, stop here
+                };
+                break w;
+              };
+            };
+          };
           // If this entry is terminal, update longest suffix length
           if (entry.isTerminal) {
             longestSuffixLength := currentLength;
           };
 
           // Continue traversing to children
-          currentEntries := entry.children;
         };
-        case null {
+        case (null) {
           // Part not found in tree, stop traversing
           break w;
         };

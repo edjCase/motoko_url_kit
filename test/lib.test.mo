@@ -1,13 +1,15 @@
 import UrlKit "../src";
 import Host "../src/Host";
 import Text "mo:core@1/Text";
-import Debug "mo:core@1/Debug";
 import Array "mo:core@1/Array";
 import { test } "mo:test";
 import Bool "mo:core@1/Bool";
 import Runtime "mo:core@1/Runtime";
+import ComprehensiveDomainParser "../src/ComprehensiveDomainParser";
 
 // ===== HELPER FUNCTIONS =====
+
+let comprehensiveDomainParser = ComprehensiveDomainParser.ComprehensiveDomainParser();
 
 func formatError(testName : Text, input : Text, expected : Text, actual : Text) : Text {
   testName # " failed:\n" #
@@ -194,7 +196,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (Host.fromText(testCase.input)) {
+      switch (Host.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(hostOrNull)) {
           if (hostOrNull != testCase.expected) {
             Runtime.trap(
@@ -966,7 +968,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(actualUrl)) {
           if (not UrlKit.equal(actualUrl, testCase.expected)) {
             Runtime.trap(
@@ -1045,7 +1047,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(actual)) {
           Runtime.trap(
             "Test failed\n" #
@@ -1100,10 +1102,10 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(url)) {
           let reconstructed = UrlKit.toText(url);
-          switch (UrlKit.fromText(reconstructed)) {
+          switch (UrlKit.fromText(reconstructed, comprehensiveDomainParser)) {
             case (#ok(_)) {}; // Success
             case (#err(msg)) {
               Runtime.trap(formatError("toText roundtrip", testCase.input, "parseable URL", "unparseable: " # msg));
@@ -1167,7 +1169,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url)) {
+      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
         case (#ok(url)) {
           let result = UrlKit.getQueryParam(url, testCase.key);
           switch (testCase.expectedValue, result) {
@@ -1230,7 +1232,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url)) {
+      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
         case (#ok(url)) {
           let updatedUrl = if (testCase.operation == "addQueryParam" and testCase.params.size() > 0) {
             UrlKit.addQueryParam(url, testCase.params[0]);
@@ -1306,7 +1308,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url)) {
+      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
         case (#ok(url)) {
           let keysToRemove = Array.map(testCase.params, func((k, _) : (Text, Text)) : Text = k);
 
@@ -1407,9 +1409,9 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url1)) {
+      switch (UrlKit.fromText(testCase.url1, comprehensiveDomainParser)) {
         case (#ok(url1)) {
-          switch (UrlKit.fromText(testCase.url2)) {
+          switch (UrlKit.fromText(testCase.url2, comprehensiveDomainParser)) {
             case (#ok(url2)) {
               let result = UrlKit.equal(url1, url2);
               if (result != testCase.shouldBeEqual) {
@@ -1446,7 +1448,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(url)) {
           let normalized = UrlKit.normalize(url);
           let result = UrlKit.toText(normalized);
@@ -1495,7 +1497,7 @@ test(
     ];
 
     for (testCase in userInfoTestCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(url)) {
           // Check user info was parsed correctly
           switch (url.authority) {
@@ -1560,7 +1562,7 @@ test(
     ];
 
     for (testCase in ipv6TestCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(url)) {
           // Verify host type
           switch (url.authority) {
@@ -1619,7 +1621,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(url)) {
           // Check fragment was decoded properly
           switch (url.fragment, testCase.expectedFragment) {
@@ -1667,7 +1669,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.input)) {
+      switch (UrlKit.fromText(testCase.input, comprehensiveDomainParser)) {
         case (#ok(url)) {
           let normalizedUrl = UrlKit.normalize(url);
           if (normalizedUrl.path != testCase.expectedPath) {
@@ -1702,7 +1704,7 @@ test(
     ];
 
     for (testCase in testCases.vals()) {
-      switch (UrlKit.fromText(testCase.url)) {
+      switch (UrlKit.fromText(testCase.url, comprehensiveDomainParser)) {
         case (#ok(url)) {
           let urlWithParams = UrlKit.addQueryParamMulti(url, testCase.params);
           let result = UrlKit.toText(urlWithParams);

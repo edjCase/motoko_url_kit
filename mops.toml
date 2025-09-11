@@ -3,7 +3,7 @@ name = "url-kit"
 version = "1.1.0"
 description = "A library with Url helper utilities for parsing and manipulation"
 repository = "https://github.com/edjcase/motoko_url_kit"
-keywords = ["url", "query", "parse", "domain", "web", "encode"]
+keywords = [ "url", "query", "parse", "domain", "web", "encode" ]
 license = "MIT"
 
 [dependencies]
@@ -15,3 +15,6 @@ license = "MIT"
 
 [dev-dependencies]
 test = "2.1.1"
+
+[toolchain]
+wasmtime = "36.0.2"

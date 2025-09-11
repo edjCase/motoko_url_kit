@@ -30,7 +30,7 @@ module {
   /// let result3 = Host.fromText("192.168.1.1");
   /// // result3 is #ok((#ipV4((192, 168, 1, 1)), null))
   /// ```
-  public func fromText(hostAndPort : Text) : Result.Result<(Host, ?Nat16), Text> {
+  public func fromText(hostAndPort : Text, domainParser : Domain.DomainParser) : Result.Result<(Host, ?Nat16), Text> {
     let trimmed = Text.trim(hostAndPort, #text(" "));
 
     // Handle empty case
@@ -51,7 +51,7 @@ module {
         let portPart = partsArray[1];
 
         // Parse the IPv6 host
-        let host = switch (fromTextHostOnly(ipv6Part)) {
+        let host = switch (fromTextHostOnly(ipv6Part, domainParser)) {
           case (#ok(h)) h;
           case (#err(msg)) return #err(msg);
         };
@@ -65,7 +65,7 @@ module {
         return #ok((host, port));
       } else if (Text.endsWith(trimmed, #text("]"))) {
         // IPv6 without port: [2001:db8::1]
-        let host = switch (fromTextHostOnly(trimmed)) {
+        let host = switch (fromTextHostOnly(trimmed, domainParser)) {
           case (#ok(h)) h;
           case (#err(msg)) return #err(msg);
         };
@@ -85,7 +85,7 @@ module {
         let hostPart = partsArray[0];
         let portPart = partsArray[1];
 
-        let host = switch (fromTextHostOnly(hostPart)) {
+        let host = switch (fromTextHostOnly(hostPart, domainParser)) {
           case (#ok(h)) h;
           case (#err(msg)) return #err(msg);
         };
@@ -103,7 +103,7 @@ module {
     };
 
     // No port, just host
-    let host = switch (fromTextHostOnly(trimmed)) {
+    let host = switch (fromTextHostOnly(trimmed, domainParser)) {
       case (#ok(h)) h;
       case (#err(msg)) return #err(msg);
     };
@@ -111,7 +111,7 @@ module {
     #ok((host, null));
   };
 
-  private func fromTextHostOnly(host : Text) : Result.Result<Host, Text> {
+  private func fromTextHostOnly(host : Text, domainParser : Domain.DomainParser) : Result.Result<Host, Text> {
     let trimmedHost = Text.trim(host, #text(" "));
 
     // Handle empty host
@@ -142,7 +142,7 @@ module {
     };
 
     // Try to parse as domain
-    switch (Domain.fromText(cleanHost)) {
+    switch (domainParser.parse(cleanHost)) {
       case (#ok(domain)) return #ok(#domain(domain));
       case (#err(_)) {
         // If not a valid domain, validate as hostname
